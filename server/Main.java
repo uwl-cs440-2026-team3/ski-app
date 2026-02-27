@@ -25,6 +25,10 @@ public class Main {
         HttpsServer server = Main.getLocalServer();
         server.setHttpsConfigurator(new HttpsConfigurator(ctx));
         server.start();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Shutting down...");
+            server.stop(1);
+        }));
     }
 
     private static HttpsServer getLocalServer() throws UnknownHostException,
