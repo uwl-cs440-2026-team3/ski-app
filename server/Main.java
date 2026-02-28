@@ -1,24 +1,62 @@
 import com.sun.net.httpserver.*;
-import java.io.IOException;
+import java.io.*;
 import java.net.*;
-import java.security.NoSuchAlgorithmException;
+import java.security.*;
+import java.security.cert.CertificateException;
 import java.util.concurrent.CountDownLatch;
-import javax.net.ssl.SSLContext;
+import javax.net.ssl.*;
 
 public class Main {
     private final static int port = 1041;
     private final static int connectionBacklog = 5;
 
     public static void main(String[] args) {
+        if (args.length < 2) {
+            System.err.println("usage: java Main <path_to_certificate> " +
+                               "<certificate_passphrase>");
+            System.exit(1);
+        }
+
+        File serverCert = new File(args[0]);
+        char[] passphrase = args[1].toCharArray();
+        KeyManager[] keys = Main.loadCertificateOrBust(serverCert, passphrase);
+
         try {
-            Main.hostServer(SSLContext.getDefault());
+            SSLContext ctx = SSLContext.getInstance("TLSv1.2");
+            ctx.init(keys, null, null);
+            Main.hostServer(ctx);
         } catch (NoSuchAlgorithmException e) {
             e.printStackTrace(System.err);
         } catch (UnknownHostException e) {
             e.printStackTrace(System.err);
         } catch (IOException e) {
             e.printStackTrace(System.err);
+        } catch (KeyManagementException e) {
+            e.printStackTrace(System.err);
         }
+    }
+
+    private static KeyManager[] loadCertificateOrBust(File cert,
+            char[] passphrase) {
+        try {
+            KeyStore ks = KeyStore.getInstance(cert, passphrase);
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+            kmf.init(ks, passphrase);
+            return kmf.getKeyManagers();
+        } catch (IOException e) {
+            System.err.printf("Failed to load key: %s\n", e.getLocalizedMessage());
+        } catch (CertificateException e) {
+            System.err.printf("Failed to load key: %s\n", e.getLocalizedMessage());
+        } catch (KeyStoreException e) {
+            System.err.println("No provider for specified keystore.");
+        } catch (NoSuchAlgorithmException e) {
+            System.err.println("Missing algorithm for keystore integrity check.");
+        } catch (UnrecoverableKeyException e) {
+            System.err.println("Could not load key. Key file could be corrupt.");
+        }
+
+        System.exit(1);
+        return null;
     }
 
     private static void hostServer(SSLContext ctx) throws UnknownHostException,
