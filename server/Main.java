@@ -6,12 +6,15 @@ import java.security.cert.CertificateException;
 import java.sql.*;
 import java.util.concurrent.CountDownLatch;
 import javax.net.ssl.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class Main {
     private final static int port = 1041;
     private final static int connectionBacklog = 5;
     private final static String databaseURL = "jdbc:sqlite:ski.db";
-
+    private static final ObjectMapper JSONMapper = new ObjectMapper();
+    
+    
     public static void main(String[] args) {
         if (args.length < 2) {
             System.err.println("usage: java Main <path_to_certificate> " +
@@ -37,6 +40,12 @@ public class Main {
         } catch (KeyManagementException e) {
             e.printStackTrace(System.err);
         }
+    }
+
+    private static class RegisterRequest {
+        public String email;
+        public String name;
+        public String password;
     }
 
     private static KeyManager[] loadCertificateOrBust(File cert,
@@ -87,6 +96,8 @@ public class Main {
         IOException {
         HttpsServer server = Main.getLocalServer();
         server.setHttpsConfigurator(new HttpsConfigurator(ctx));
+        Main.registerRoutes(server);
+        System.out.println("ROUTES REGISTERED");
         server.start();
 
         // The Java 17 documentation does not seem to guarantee that the
@@ -122,4 +133,61 @@ public class Main {
             }
         }
     }
+    private static void registerRoutes(HttpsServer server) {
+        System.out.println("REGISTER CONTEXT LOADED");
+        server.createContext("/register", (HttpExchange hx) -> {
+            try {
+                if (!hx.getRequestMethod().equals("POST")) {
+                    hx.sendResponseHeaders(405, 0);
+                    hx.close();
+                    return;
+                }
+
+                // JSON parse
+                RegisterRequest req =
+                    JSONMapper.readValue(hx.getRequestBody(), RegisterRequest.class);
+
+                if (req.email == null || req.password == null || req.name == null) {
+                    hx.sendResponseHeaders(400, 0);
+                    hx.close();
+                    return;
+                }
+
+                // Password hash
+                String hash = hashPassword(req.password);
+
+                // DB insert
+                try (Connection conn = DriverManager.getConnection(databaseURL)) {
+                    String sql = "INSERT INTO users (email, name, pwhash, role_mask) VALUES (?, ?, ?, ?)";
+                    PreparedStatement ps = conn.prepareStatement(sql);
+                    ps.setString(1, req.email);
+                    ps.setString(2, req.name);
+                    ps.setString(3, hash);
+                    ps.setInt(4, 0); // şimdilik role 0
+                    ps.executeUpdate();
+                }
+
+                byte[] response = "registered".getBytes();
+                hx.sendResponseHeaders(201, response.length);
+                hx.getResponseBody().write(response);
+
+            } catch (SQLException e) {
+                hx.sendResponseHeaders(409, 0); // duplicate email
+            } catch (Exception e) {
+                hx.sendResponseHeaders(400, 0);
+            }
+
+            hx.close();
+        });
+    }
+    private static String hashPassword(String password) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(password.getBytes());
+        StringBuilder sb = new StringBuilder();
+        for (byte b : hash) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+
 }

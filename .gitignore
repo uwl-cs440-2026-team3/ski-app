@@ -1,2 +1,6 @@
 *.class
 *.p12
+*.db
+*.jar
+runlog.txt
+payload.json
