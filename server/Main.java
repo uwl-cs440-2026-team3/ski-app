@@ -3,12 +3,14 @@ import java.io.*;
 import java.net.*;
 import java.security.*;
 import java.security.cert.CertificateException;
+import java.sql.*;
 import java.util.concurrent.CountDownLatch;
 import javax.net.ssl.*;
 
 public class Main {
     private final static int port = 1041;
     private final static int connectionBacklog = 5;
+    private final static String databaseURL = "jdbc:sqlite:ski.db";
 
     public static void main(String[] args) {
         if (args.length < 2) {
@@ -20,6 +22,7 @@ public class Main {
         File serverCert = new File(args[0]);
         char[] passphrase = args[1].toCharArray();
         KeyManager[] keys = Main.loadCertificateOrBust(serverCert, passphrase);
+        Main.initDBOrBust(databaseURL);
 
         try {
             SSLContext ctx = SSLContext.getInstance("TLSv1.2");
@@ -57,6 +60,27 @@ public class Main {
 
         System.exit(1);
         return null;
+    }
+
+    private static void initDBOrBust(String url) {
+        // This routine must be called prior to accepting any client
+        // connections, to ensure the database exists, and to avoid
+        // synchronization issues, as this routine is not threadsafe.
+        String sql = """
+                     CREATE TABLE IF NOT EXISTS users (
+                         userid INTEGER PRIMARY KEY ASC AUTOINCREMENT,
+                         email TEXT NOT NULL UNIQUE,
+                         name TEXT NOT NULL,
+                         pwhash TEXT NOT NULL,
+                         role_mask INTEGER DEFAULT 0);
+        """;
+        try (Connection conn = DriverManager.getConnection(url)) {
+            conn.setAutoCommit(true);
+            conn.prepareStatement(sql).execute();
+        } catch (SQLException e) {
+            e.printStackTrace(System.err);
+            System.exit(1);
+        }
     }
 
     private static void hostServer(SSLContext ctx) throws UnknownHostException,
