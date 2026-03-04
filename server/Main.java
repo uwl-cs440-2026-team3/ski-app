@@ -300,8 +300,7 @@ public class Main {
 
         private void sendBearerToken() throws IOException, JsonProcessingException {
             String response = Main.JSONMapper.writeValueAsString(this.genToken());
-            this.sendText(200, "logged in");
-            this.hx.getResponseBody().write(response.getBytes());
+            this.sendText(200, response);
         }
 
         private Token genToken() {
