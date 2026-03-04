@@ -299,15 +299,17 @@ public class Main {
         }
 
         private void sendBearerToken() throws IOException, JsonProcessingException {
-            String response = Main.JSONMapper.writeValueAsString(this.genToken());
+            LoginResponse responseData = new LoginResponse(this.genToken(), "skier");
+            String response = Main.JSONMapper.writeValueAsString(responseData);
             this.sendText(200, response);
         }
 
-        private Token genToken() {
+        private String genToken() {
             byte[] token = new byte[256];
             new SecureRandom().nextBytes(token);
-            return new Token(Base64.getUrlEncoder().withoutPadding().encodeToString(
-                                 token));
+            return Base64.getUrlEncoder()
+                   .withoutPadding()
+                   .encodeToString(token);
         }
 
         private void sendFailedLogin() throws IOException {
@@ -315,7 +317,7 @@ public class Main {
         }
 
         private record LoginRequest(String email, String name, String password) {};
-        private record Token(String token) {};
+        private record LoginResponse(String token, String role) {};
     }
 
     private static String hashPassword(String password) throws

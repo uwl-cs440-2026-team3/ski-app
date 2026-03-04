@@ -50,8 +50,11 @@ If a login succeeds, the response includes the following JSON response:
 
 ```json
 {
-  "token" : token
+  "token" : token,
+  "role" : role
 }
 ```
 
-The token field represents a bearer token which the client may use in subsequent requests to authorize certain endpoints. The response will be 403 Forbidden if the email has not been registered or the password did not match. Note that it can be determined from `/register` whether an email exists, so the 403 response for an unknown email should not be considered to provide much security.
+The token field represents a bearer token which the client may use in subsequent requests to authorize certain endpoints. The role field will be one of "skier", "coach", or "admin", indicating the role of the logged-in user.
+
+The response will be 403 Forbidden if the email has not been registered or the password did not match. Note that it can be determined from `/register` whether an email exists, so the 403 response for an unknown email should not be considered to provide much security.
