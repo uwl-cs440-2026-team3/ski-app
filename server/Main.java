@@ -288,7 +288,7 @@ public class Main {
                 query.setString(1, login.email);
                 ResultSet result = query.executeQuery();
 
-                if (!result.first()) {
+                if (!result.next()) {
                     return false;
                 }
 
