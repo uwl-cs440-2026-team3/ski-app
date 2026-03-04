@@ -1,23 +1,23 @@
 import com.sun.net.httpserver.*;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.net.*;
 import java.security.*;
 import java.security.cert.CertificateException;
 import java.sql.*;
+import java.util.Base64;
 import java.util.concurrent.CountDownLatch;
 import javax.net.ssl.*;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import com.fasterxml.jackson.core.JacksonException;
+import com.fasterxml.jackson.core.*;
 
 public class Main {
     private final static int port = 1041;
     private final static int connectionBacklog = 5;
     private final static String databaseURL = "jdbc:sqlite:ski.db";
-    private static final ObjectMapper JSONMapper = new ObjectMapper();
-    
-    
+    private final static ObjectMapper JSONMapper = new ObjectMapper();
+
     public static void main(String[] args) {
         if (args.length < 2) {
             System.err.println("usage: java Main <path_to_certificate> " +
@@ -124,6 +124,207 @@ public class Main {
                                   Main.connectionBacklog);
     }
 
+    private static void registerRoutes(HttpsServer server) {
+        server.createContext("/register",
+                             (HttpExchange hx) -> new RegistrationHandler(hx).handle());
+        server.createContext("/login",
+                             (HttpExchange hx) -> new LoginHandler(hx).handle());
+    }
+
+    private static abstract class RequestLifecycle {
+        protected HttpExchange hx;
+
+        public RequestLifecycle(HttpExchange hx) {
+            this.hx = hx;
+        }
+
+        public void handle() throws IOException {
+            try {
+                String method = this.hx.getRequestMethod();
+
+                if ("POST".equals(method)) {
+                    // Continue
+                } else if (this.isRecognizedHttpMethod(method)) {
+                    this.methodNotAllowed("POST");
+                    return;
+                } else {
+                    this.notImplemented();
+                    return;
+                }
+
+                this.handleDetail();
+            } finally {
+                this.hx.close();
+            }
+        }
+
+        abstract void handleDetail() throws IOException;
+
+        protected static boolean isRecognizedHttpMethod(String m) {
+            return "GET".equals(m) || "HEAD".equals(m) || "POST".equals(m) ||
+                   "PUT".equals(m) || "DELETE".equals(m) || "OPTIONS".equals(m) ||
+                   "PATCH".equals(m) || "TRACE".equals(m) || "CONNECT".equals(m);
+        }
+
+        protected void sendText(int status, String body) throws IOException {
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            this.hx.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+            this.hx.sendResponseHeaders(status, bytes.length);
+            try (OutputStream os = this.hx.getResponseBody()) {
+                os.write(bytes);
+            }
+        }
+
+        protected void badRequest(String msg) throws IOException {
+            this.sendText(400, msg);
+        }
+
+        protected void conflict(String msg) throws IOException {
+            this.sendText(409, msg);
+        }
+
+        private void methodNotAllowed(String allow) throws IOException {
+            this.hx.getResponseHeaders().set("Allow", allow);
+            this.hx.sendResponseHeaders(405, -1);
+        }
+
+        private void notImplemented() throws IOException {
+            this.hx.sendResponseHeaders(501, -1);
+        }
+    }
+
+    private static class RegistrationHandler extends RequestLifecycle {
+        public RegistrationHandler(HttpExchange hx) {
+            super(hx);
+        }
+
+        @Override
+        void handleDetail() throws IOException {
+
+            RegisterRequest req;
+            try {
+                req = JSONMapper.readValue(this.hx.getRequestBody(), RegisterRequest.class);
+            } catch (JacksonException je) {
+                this.badRequest("Invalid JSON");
+                return;
+            }
+
+            if (req == null || isBlank(req.email) || isBlank(req.name)
+                    || isBlank(req.password)) {
+                this.badRequest("Missing required fields");
+                return;
+            }
+
+            String hash;
+            try {
+                hash = Main.hashPassword(req.password);
+            } catch (NoSuchAlgorithmException e) {
+                this.sendText(500, "Server misconfigured");
+                return;
+            }
+
+            try (Connection conn = DriverManager.getConnection(databaseURL)) {
+                String sql =
+                    "INSERT INTO users (email, name, pwhash, role_mask) VALUES (?, ?, ?, ?)";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setString(1, req.email);
+                    ps.setString(2, req.name);
+                    ps.setString(3, hash);
+                    ps.setInt(4, 0);
+                    ps.executeUpdate();
+                }
+            } catch (SQLException se) {
+                // If the UNIQUE constraint (email) has failed, 409 makes sense
+                this.conflict("Email already registered");
+                return;
+            }
+
+            this.sendText(201, "registered");
+        }
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
+    private static class LoginHandler extends RequestLifecycle {
+        public LoginHandler(HttpExchange hx) {
+            super(hx);
+        }
+
+        @Override
+        void handleDetail() throws IOException {
+            LoginRequest req;
+            try {
+                req = JSONMapper.readValue(this.hx.getRequestBody(), LoginRequest.class);
+            } catch (JacksonException je) {
+                this.badRequest("Invalid JSON");
+                return;
+            }
+
+            try {
+                if (this.authenticates(req)) {
+                    this.sendBearerToken();
+                } else {
+                    this.sendFailedLogin();
+                }
+            } catch (SQLException e) {
+                e.printStackTrace(System.err);
+                this.sendText(500, "");
+            } catch (JsonProcessingException e) {
+                e.printStackTrace(System.err);
+                this.sendText(500, "");
+            } catch (NoSuchAlgorithmException e) {
+                this.sendText(500, "Server misconfigured");
+            }
+        }
+
+        private boolean authenticates(
+            LoginRequest login) throws SQLException, IOException,
+            NoSuchAlgorithmException {
+            try (Connection conn = DriverManager.getConnection(Main.databaseURL)) {
+                PreparedStatement query =
+                    conn.prepareStatement("SELECT (pwhash) FROM users WHERE email = ?");
+                query.setString(1, login.email);
+                ResultSet result = query.executeQuery();
+
+                if (!result.next()) {
+                    return false;
+                }
+
+                // There can only be zero or one result rows, since emails are
+                // constrained to be unique.
+                return result.getString("pwhash").equals(Main.hashPassword(login.password));
+            }
+        }
+
+        private void sendBearerToken() throws IOException, JsonProcessingException {
+            String response = Main.JSONMapper.writeValueAsString(this.genToken());
+            this.sendText(200, response);
+        }
+
+        private Token genToken() {
+            byte[] token = new byte[256];
+            new SecureRandom().nextBytes(token);
+            return new Token(Base64.getUrlEncoder().withoutPadding().encodeToString(
+                                 token));
+        }
+
+        private void sendFailedLogin() throws IOException {
+            this.sendText(403, "Unauthorized Credentials");
+        }
+
+        private record LoginRequest(String email, String name, String password) {};
+        private record Token(String token) {};
+    }
+
+    private static String hashPassword(String password) throws
+        NoSuchAlgorithmException {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder().encodeToString(hash);
+    }
+
     private static void waitUntilShutdown(CountDownLatch shutdownLatch) {
         // The loop is necessary to make sure we do not terminate due to a
         // supurious wake-up from a thread interrupt.
@@ -135,109 +336,4 @@ public class Main {
             }
         }
     }
-    private static void registerRoutes(HttpsServer server) {
-        server.createContext("/register", Main::handleRegister);
-    }
-
-    // Register handling helper method
-    private static void handleRegister(HttpExchange hx) throws IOException {
-        try {
-            String method = hx.getRequestMethod();
-
-            if ("POST".equals(method)) {
-                // Continue
-            } else if (isRecognizedHttpMethod(method)) {
-                // Recognized but not supported by this endpoint
-                methodNotAllowed(hx, "POST");
-                return;
-            } else {
-                // Unrecognized method
-                notImplemented(hx);
-                return;
-}
-
-            RegisterRequest req;
-            try {
-                req = JSONMapper.readValue(hx.getRequestBody(), RegisterRequest.class);
-            } catch (JacksonException je) {
-                badRequest(hx, "Invalid JSON");
-                return;
-            }
-
-            if (req == null || isBlank(req.email) || isBlank(req.name) || isBlank(req.password)) {
-                badRequest(hx, "Missing required fields");
-                return;
-            }
-
-            String hash;
-            try {
-                hash = hashPassword(req.password);
-            } catch (NoSuchAlgorithmException e) {
-                sendText(hx, 500, "Server misconfigured");
-                return;
-            }
-
-            try (Connection conn = DriverManager.getConnection(databaseURL)) {
-            String sql = "INSERT INTO users (email, name, pwhash, role_mask) VALUES (?, ?, ?, ?)";
-                try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                    ps.setString(1, req.email);
-                    ps.setString(2, req.name);
-                    ps.setString(3, hash);
-                    ps.setInt(4, 0);
-                    ps.executeUpdate();
-                }
-            } catch (SQLException se) {
-                // If the UNIQUE constraint (email) has failed, 409 makes sense
-                conflict(hx, "Email already registered");
-                return;
-            }
-
-            sendText(hx, 201, "registered");
-        } finally {
-            hx.close();
-        }
-    }
-
-    private static boolean isBlank(String s) {
-        return s == null || s.trim().isEmpty();
-    }
-
-    private static void sendText(HttpExchange hx, int status, String body) throws IOException {
-        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-        hx.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
-        hx.sendResponseHeaders(status, bytes.length);
-        try (OutputStream os = hx.getResponseBody()) {
-            os.write(bytes);
-        }
-    }
-
-    private static void badRequest(HttpExchange hx, String msg) throws IOException {
-        sendText(hx, 400, msg);
-    }
-
-    private static void conflict(HttpExchange hx, String msg) throws IOException {
-        sendText(hx, 409, msg);
-    }
-
-    private static void methodNotAllowed(HttpExchange hx, String allow) throws IOException {
-        hx.getResponseHeaders().set("Allow", allow);
-        hx.sendResponseHeaders(405, -1);
-    }
-
-    private static boolean isRecognizedHttpMethod(String m) {
-        return "GET".equals(m) || "HEAD".equals(m) || "POST".equals(m) ||
-            "PUT".equals(m) || "DELETE".equals(m) || "OPTIONS".equals(m) ||
-            "PATCH".equals(m) || "TRACE".equals(m) || "CONNECT".equals(m);
-    }
-
-    private static void notImplemented(HttpExchange hx) throws IOException {
-        hx.sendResponseHeaders(501, -1);
-    }
-
-    private static String hashPassword(String password) throws NoSuchAlgorithmException {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] hash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
-        return Base64.getEncoder().encodeToString(hash);
-    }
-
 }
