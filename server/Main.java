@@ -132,19 +132,32 @@ public class Main {
     }
 
     private static class RequestLifecycle {
+        protected HttpExchange hx;
+
+        public RequestLifecycle(HttpExchange hx) {
+          this.hx = hx;
+        }
 
         protected static boolean isRecognizedHttpMethod(String m) {
             return "GET".equals(m) || "HEAD".equals(m) || "POST".equals(m) ||
                    "PUT".equals(m) || "DELETE".equals(m) || "OPTIONS".equals(m) ||
                    "PATCH".equals(m) || "TRACE".equals(m) || "CONNECT".equals(m);
         }
+
+        protected void sendText(int status,
+                                String body) throws IOException {
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            this.hx.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+            this.hx.sendResponseHeaders(status, bytes.length);
+            try (OutputStream os = this.hx.getResponseBody()) {
+                os.write(bytes);
+            }
+        }
     }
 
     private static class RegistrationHandler extends RequestLifecycle {
-        private HttpExchange hx;
-
         public RegistrationHandler(HttpExchange hx) {
-            this.hx = hx;
+            super(hx);
         }
 
         private void handleRegister() throws IOException {
@@ -207,16 +220,6 @@ public class Main {
             }
         }
 
-        private void sendText(int status,
-                              String body) throws IOException {
-            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-            hx.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
-            hx.sendResponseHeaders(status, bytes.length);
-            try (OutputStream os = hx.getResponseBody()) {
-                os.write(bytes);
-            }
-        }
-
         private void badRequest(
             String msg) throws IOException {
             this.sendText(400, msg);
@@ -242,20 +245,8 @@ public class Main {
     }
 
     private static class LoginHandler extends RequestLifecycle {
-        private HttpExchange hx;
-
         public LoginHandler(HttpExchange hx) {
-            this.hx = hx;
-        }
-
-        private void sendText(int status,
-                              String body) throws IOException {
-            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-            this.hx.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
-            this.hx.sendResponseHeaders(status, bytes.length);
-            try (OutputStream os = this.hx.getResponseBody()) {
-                os.write(bytes);
-            }
+            super(hx);
         }
 
         private void badRequest(
