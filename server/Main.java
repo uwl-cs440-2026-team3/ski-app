@@ -144,14 +144,30 @@ public class Main {
                    "PATCH".equals(m) || "TRACE".equals(m) || "CONNECT".equals(m);
         }
 
-        protected void sendText(int status,
-                                String body) throws IOException {
+        protected void sendText(int status, String body) throws IOException {
             byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
             this.hx.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
             this.hx.sendResponseHeaders(status, bytes.length);
             try (OutputStream os = this.hx.getResponseBody()) {
                 os.write(bytes);
             }
+        }
+
+        protected void badRequest(String msg) throws IOException {
+            this.sendText(400, msg);
+        }
+
+        protected void conflict(String msg) throws IOException {
+            this.sendText(409, msg);
+        }
+
+        protected void methodNotAllowed(String allow) throws IOException {
+            this.hx.getResponseHeaders().set("Allow", allow);
+            this.hx.sendResponseHeaders(405, -1);
+        }
+
+        protected void notImplemented() throws IOException {
+            this.hx.sendResponseHeaders(501, -1);
         }
     }
 
@@ -219,25 +235,6 @@ public class Main {
                 this.hx.close();
             }
         }
-
-        private void badRequest(
-            String msg) throws IOException {
-            this.sendText(400, msg);
-        }
-
-        private void conflict(String msg) throws IOException {
-            this.sendText(409, msg);
-        }
-
-        private void methodNotAllowed(
-            String allow) throws IOException {
-            this.hx.getResponseHeaders().set("Allow", allow);
-            this.hx.sendResponseHeaders(405, -1);
-        }
-
-        private void notImplemented() throws IOException {
-            this.hx.sendResponseHeaders(501, -1);
-        }
     }
 
     private static boolean isBlank(String s) {
@@ -247,25 +244,6 @@ public class Main {
     private static class LoginHandler extends RequestLifecycle {
         public LoginHandler(HttpExchange hx) {
             super(hx);
-        }
-
-        private void badRequest(
-            String msg) throws IOException {
-            this.sendText(400, msg);
-        }
-
-        private void conflict(String msg) throws IOException {
-            this.sendText(409, msg);
-        }
-
-        private void methodNotAllowed(
-            String allow) throws IOException {
-            this.hx.getResponseHeaders().set("Allow", allow);
-            this.hx.sendResponseHeaders(405, -1);
-        }
-
-        private void notImplemented() throws IOException {
-            this.hx.sendResponseHeaders(501, -1);
         }
 
         private void handleLogin() throws IOException {
