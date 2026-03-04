@@ -6,12 +6,18 @@ import java.security.cert.CertificateException;
 import java.sql.*;
 import java.util.concurrent.CountDownLatch;
 import javax.net.ssl.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import com.fasterxml.jackson.core.JacksonException;
 
 public class Main {
     private final static int port = 1041;
     private final static int connectionBacklog = 5;
     private final static String databaseURL = "jdbc:sqlite:ski.db";
-
+    private static final ObjectMapper JSONMapper = new ObjectMapper();
+    
+    
     public static void main(String[] args) {
         if (args.length < 2) {
             System.err.println("usage: java Main <path_to_certificate> " +
@@ -37,6 +43,12 @@ public class Main {
         } catch (KeyManagementException e) {
             e.printStackTrace(System.err);
         }
+    }
+
+    private static class RegisterRequest {
+        public String email;
+        public String name;
+        public String password;
     }
 
     private static KeyManager[] loadCertificateOrBust(File cert,
@@ -87,6 +99,7 @@ public class Main {
         IOException {
         HttpsServer server = Main.getLocalServer();
         server.setHttpsConfigurator(new HttpsConfigurator(ctx));
+        Main.registerRoutes(server);
         server.start();
 
         // The Java 17 documentation does not seem to guarantee that the
@@ -122,4 +135,109 @@ public class Main {
             }
         }
     }
+    private static void registerRoutes(HttpsServer server) {
+        server.createContext("/register", Main::handleRegister);
+    }
+
+    // Register handling helper method
+    private static void handleRegister(HttpExchange hx) throws IOException {
+        try {
+            String method = hx.getRequestMethod();
+
+            if ("POST".equals(method)) {
+                // Continue
+            } else if (isRecognizedHttpMethod(method)) {
+                // Recognized but not supported by this endpoint
+                methodNotAllowed(hx, "POST");
+                return;
+            } else {
+                // Unrecognized method
+                notImplemented(hx);
+                return;
+}
+
+            RegisterRequest req;
+            try {
+                req = JSONMapper.readValue(hx.getRequestBody(), RegisterRequest.class);
+            } catch (JacksonException je) {
+                badRequest(hx, "Invalid JSON");
+                return;
+            }
+
+            if (req == null || isBlank(req.email) || isBlank(req.name) || isBlank(req.password)) {
+                badRequest(hx, "Missing required fields");
+                return;
+            }
+
+            String hash;
+            try {
+                hash = hashPassword(req.password);
+            } catch (NoSuchAlgorithmException e) {
+                sendText(hx, 500, "Server misconfigured");
+                return;
+            }
+
+            try (Connection conn = DriverManager.getConnection(databaseURL)) {
+            String sql = "INSERT INTO users (email, name, pwhash, role_mask) VALUES (?, ?, ?, ?)";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setString(1, req.email);
+                    ps.setString(2, req.name);
+                    ps.setString(3, hash);
+                    ps.setInt(4, 0);
+                    ps.executeUpdate();
+                }
+            } catch (SQLException se) {
+                // If the UNIQUE constraint (email) has failed, 409 makes sense
+                conflict(hx, "Email already registered");
+                return;
+            }
+
+            sendText(hx, 201, "registered");
+        } finally {
+            hx.close();
+        }
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
+    private static void sendText(HttpExchange hx, int status, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        hx.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+        hx.sendResponseHeaders(status, bytes.length);
+        try (OutputStream os = hx.getResponseBody()) {
+            os.write(bytes);
+        }
+    }
+
+    private static void badRequest(HttpExchange hx, String msg) throws IOException {
+        sendText(hx, 400, msg);
+    }
+
+    private static void conflict(HttpExchange hx, String msg) throws IOException {
+        sendText(hx, 409, msg);
+    }
+
+    private static void methodNotAllowed(HttpExchange hx, String allow) throws IOException {
+        hx.getResponseHeaders().set("Allow", allow);
+        hx.sendResponseHeaders(405, -1);
+    }
+
+    private static boolean isRecognizedHttpMethod(String m) {
+        return "GET".equals(m) || "HEAD".equals(m) || "POST".equals(m) ||
+            "PUT".equals(m) || "DELETE".equals(m) || "OPTIONS".equals(m) ||
+            "PATCH".equals(m) || "TRACE".equals(m) || "CONNECT".equals(m);
+    }
+
+    private static void notImplemented(HttpExchange hx) throws IOException {
+        hx.sendResponseHeaders(501, -1);
+    }
+
+    private static String hashPassword(String password) throws NoSuchAlgorithmException {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder().encodeToString(hash);
+    }
+
 }
