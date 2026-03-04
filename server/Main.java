@@ -131,7 +131,16 @@ public class Main {
                              (HttpExchange hx) -> new LoginHandler(hx).handleLogin());
     }
 
-    private static class RegistrationHandler {
+    private static class RequestLifecycle {
+
+        protected static boolean isRecognizedHttpMethod(String m) {
+            return "GET".equals(m) || "HEAD".equals(m) || "POST".equals(m) ||
+                   "PUT".equals(m) || "DELETE".equals(m) || "OPTIONS".equals(m) ||
+                   "PATCH".equals(m) || "TRACE".equals(m) || "CONNECT".equals(m);
+        }
+    }
+
+    private static class RegistrationHandler extends RequestLifecycle {
         private HttpExchange hx;
 
         public RegistrationHandler(HttpExchange hx) {
@@ -144,7 +153,7 @@ public class Main {
 
                 if ("POST".equals(method)) {
                     // Continue
-                } else if (RegistrationHandler.isRecognizedHttpMethod(method)) {
+                } else if (this.isRecognizedHttpMethod(method)) {
                     // Recognized but not supported by this endpoint
                     this.methodNotAllowed("POST");
                     return;
@@ -223,12 +232,6 @@ public class Main {
             this.hx.sendResponseHeaders(405, -1);
         }
 
-        private static boolean isRecognizedHttpMethod(String m) {
-            return "GET".equals(m) || "HEAD".equals(m) || "POST".equals(m) ||
-                   "PUT".equals(m) || "DELETE".equals(m) || "OPTIONS".equals(m) ||
-                   "PATCH".equals(m) || "TRACE".equals(m) || "CONNECT".equals(m);
-        }
-
         private void notImplemented() throws IOException {
             this.hx.sendResponseHeaders(501, -1);
         }
@@ -238,7 +241,7 @@ public class Main {
         return s == null || s.trim().isEmpty();
     }
 
-    private static class LoginHandler {
+    private static class LoginHandler extends RequestLifecycle {
         private HttpExchange hx;
 
         public LoginHandler(HttpExchange hx) {
@@ -270,12 +273,6 @@ public class Main {
             this.hx.sendResponseHeaders(405, -1);
         }
 
-        private static boolean isRecognizedHttpMethod(String m) {
-            return "GET".equals(m) || "HEAD".equals(m) || "POST".equals(m) ||
-                   "PUT".equals(m) || "DELETE".equals(m) || "OPTIONS".equals(m) ||
-                   "PATCH".equals(m) || "TRACE".equals(m) || "CONNECT".equals(m);
-        }
-
         private void notImplemented() throws IOException {
             this.hx.sendResponseHeaders(501, -1);
         }
@@ -285,7 +282,7 @@ public class Main {
                 String method = this.hx.getRequestMethod();
                 if ("POST".equals(method)) {
                     // Continue
-                } else if (LoginHandler.isRecognizedHttpMethod(method)) {
+                } else if (this.isRecognizedHttpMethod(method)) {
                     this.methodNotAllowed("POST");
                     return;
                 } else {
