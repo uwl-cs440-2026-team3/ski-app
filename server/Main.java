@@ -131,12 +131,34 @@ public class Main {
                              (HttpExchange hx) -> new LoginHandler(hx).handle());
     }
 
-    private static class RequestLifecycle {
+    private static abstract class RequestLifecycle {
         protected HttpExchange hx;
 
         public RequestLifecycle(HttpExchange hx) {
             this.hx = hx;
         }
+
+        public void handle() throws IOException {
+            try {
+                String method = this.hx.getRequestMethod();
+
+                if ("POST".equals(method)) {
+                    // Continue
+                } else if (this.isRecognizedHttpMethod(method)) {
+                    this.methodNotAllowed("POST");
+                    return;
+                } else {
+                    this.notImplemented();
+                    return;
+                }
+
+                this.handleDetail();
+            } finally {
+                this.hx.close();
+            }
+        }
+
+        abstract void handleDetail() throws IOException;
 
         protected static boolean isRecognizedHttpMethod(String m) {
             return "GET".equals(m) || "HEAD".equals(m) || "POST".equals(m) ||
@@ -161,12 +183,12 @@ public class Main {
             this.sendText(409, msg);
         }
 
-        protected void methodNotAllowed(String allow) throws IOException {
+        private void methodNotAllowed(String allow) throws IOException {
             this.hx.getResponseHeaders().set("Allow", allow);
             this.hx.sendResponseHeaders(405, -1);
         }
 
-        protected void notImplemented() throws IOException {
+        private void notImplemented() throws IOException {
             this.hx.sendResponseHeaders(501, -1);
         }
     }
@@ -176,64 +198,48 @@ public class Main {
             super(hx);
         }
 
-        private void handle() throws IOException {
+        @Override
+        void handleDetail() throws IOException {
+
+            RegisterRequest req;
             try {
-                String method = this.hx.getRequestMethod();
-
-                if ("POST".equals(method)) {
-                    // Continue
-                } else if (this.isRecognizedHttpMethod(method)) {
-                    // Recognized but not supported by this endpoint
-                    this.methodNotAllowed("POST");
-                    return;
-                } else {
-                    // Unrecognized method
-                    this.notImplemented();
-                    return;
-                }
-
-                RegisterRequest req;
-                try {
-                    req = JSONMapper.readValue(this.hx.getRequestBody(), RegisterRequest.class);
-                } catch (JacksonException je) {
-                    this.badRequest("Invalid JSON");
-                    return;
-                }
-
-                if (req == null || isBlank(req.email) || isBlank(req.name)
-                        || isBlank(req.password)) {
-                    this.badRequest("Missing required fields");
-                    return;
-                }
-
-                String hash;
-                try {
-                    hash = Main.hashPassword(req.password);
-                } catch (NoSuchAlgorithmException e) {
-                    this.sendText(500, "Server misconfigured");
-                    return;
-                }
-
-                try (Connection conn = DriverManager.getConnection(databaseURL)) {
-                    String sql =
-                        "INSERT INTO users (email, name, pwhash, role_mask) VALUES (?, ?, ?, ?)";
-                    try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                        ps.setString(1, req.email);
-                        ps.setString(2, req.name);
-                        ps.setString(3, hash);
-                        ps.setInt(4, 0);
-                        ps.executeUpdate();
-                    }
-                } catch (SQLException se) {
-                    // If the UNIQUE constraint (email) has failed, 409 makes sense
-                    this.conflict("Email already registered");
-                    return;
-                }
-
-                this.sendText(201, "registered");
-            } finally {
-                this.hx.close();
+                req = JSONMapper.readValue(this.hx.getRequestBody(), RegisterRequest.class);
+            } catch (JacksonException je) {
+                this.badRequest("Invalid JSON");
+                return;
             }
+
+            if (req == null || isBlank(req.email) || isBlank(req.name)
+                    || isBlank(req.password)) {
+                this.badRequest("Missing required fields");
+                return;
+            }
+
+            String hash;
+            try {
+                hash = Main.hashPassword(req.password);
+            } catch (NoSuchAlgorithmException e) {
+                this.sendText(500, "Server misconfigured");
+                return;
+            }
+
+            try (Connection conn = DriverManager.getConnection(databaseURL)) {
+                String sql =
+                    "INSERT INTO users (email, name, pwhash, role_mask) VALUES (?, ?, ?, ?)";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setString(1, req.email);
+                    ps.setString(2, req.name);
+                    ps.setString(3, hash);
+                    ps.setInt(4, 0);
+                    ps.executeUpdate();
+                }
+            } catch (SQLException se) {
+                // If the UNIQUE constraint (email) has failed, 409 makes sense
+                this.conflict("Email already registered");
+                return;
+            }
+
+            this.sendText(201, "registered");
         }
     }
 
@@ -246,34 +252,20 @@ public class Main {
             super(hx);
         }
 
-        private void handle() throws IOException {
+        @Override
+        void handleDetail() throws IOException {
+            LoginRequest req;
             try {
-                String method = this.hx.getRequestMethod();
-                if ("POST".equals(method)) {
-                    // Continue
-                } else if (this.isRecognizedHttpMethod(method)) {
-                    this.methodNotAllowed("POST");
-                    return;
-                } else {
-                    this.notImplemented();
-                    return;
-                }
+                req = JSONMapper.readValue(this.hx.getRequestBody(), LoginRequest.class);
+            } catch (JacksonException je) {
+                this.badRequest("Invalid JSON");
+                return;
+            }
 
-                LoginRequest req;
-                try {
-                    req = JSONMapper.readValue(this.hx.getRequestBody(), LoginRequest.class);
-                } catch (JacksonException je) {
-                    this.badRequest("Invalid JSON");
-                    return;
-                }
-
-                try {
-                    this.authenticate(req);
-                } catch (NoSuchAlgorithmException e) {
-                    this.sendText(500, "Server misconfigured");
-                }
-            } finally {
-                this.hx.close();
+            try {
+                this.authenticate(req);
+            } catch (NoSuchAlgorithmException e) {
+                this.sendText(500, "Server misconfigured");
             }
         }
 
