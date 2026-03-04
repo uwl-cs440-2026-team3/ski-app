@@ -263,54 +263,60 @@ public class Main {
             }
 
             try {
-                this.authenticate(req);
+                if (this.authenticates(req)) {
+                    this.sendBearerToken();
+                } else {
+                    this.sendFailedLogin();
+                }
+            } catch (SQLException e) {
+                e.printStackTrace(System.err);
+                this.sendText(500, "");
+            } catch (JsonProcessingException e) {
+                e.printStackTrace(System.err);
+                this.sendText(500, "");
             } catch (NoSuchAlgorithmException e) {
                 this.sendText(500, "Server misconfigured");
             }
         }
 
-        private static class LoginRequest {
-            public String email;
-            public String name;
-            public String password;
-        }
-
-        private void authenticate(
-            LoginRequest login) throws IOException, NoSuchAlgorithmException {
+        private boolean authenticates(
+            LoginRequest login) throws SQLException, IOException,
+            NoSuchAlgorithmException {
             try (Connection conn = DriverManager.getConnection(Main.databaseURL)) {
                 PreparedStatement query =
                     conn.prepareStatement("SELECT (pwhash) FROM users WHERE email = ?");
                 query.setString(1, login.email);
                 ResultSet result = query.executeQuery();
+
                 if (!result.first()) {
-                    this.hx.sendResponseHeaders(403, 0);
-                } else {
-                    // There can only be zero or one result rows, since emails are
-                    // constrained to be unique.
-                    String pwhash = result.getString("pwhash");
-                    if (pwhash.equals(Main.hashPassword(login.password))) {
-                        byte[] token = new byte[256];
-                        new SecureRandom().nextBytes(token);
-                        String s = Base64.getUrlEncoder().withoutPadding().encodeToString(token);
-                        try {
-                            String response = Main.JSONMapper.writeValueAsString(new Token(s));
-                            this.sendText(200, "logged in");
-                            this.hx.getResponseBody().write(response.getBytes());
-                        } catch (JsonProcessingException e) {
-                            e.printStackTrace(System.err);
-                            this.hx.sendResponseHeaders(500, 0);
-                        }
-                    } else {
-                        this.hx.sendResponseHeaders(403, 0);
-                    }
+                    return false;
                 }
-            } catch (SQLException e) {
-                e.printStackTrace(System.err);
-                this.hx.sendResponseHeaders(500, 0);
+
+                // There can only be zero or one result rows, since emails are
+                // constrained to be unique.
+                return result.getString("pwhash").equals(Main.hashPassword(login.password));
             }
         }
 
-        record Token(String token) {};
+        private void sendBearerToken() throws IOException, JsonProcessingException {
+            String response = Main.JSONMapper.writeValueAsString(this.genToken());
+            this.sendText(200, "logged in");
+            this.hx.getResponseBody().write(response.getBytes());
+        }
+
+        private Token genToken() {
+            byte[] token = new byte[256];
+            new SecureRandom().nextBytes(token);
+            return new Token(Base64.getUrlEncoder().withoutPadding().encodeToString(
+                                 token));
+        }
+
+        private void sendFailedLogin() throws IOException {
+            this.sendText(403, "Unauthorized Credentials");
+        }
+
+        private record LoginRequest(String email, String name, String password) {};
+        private record Token(String token) {};
     }
 
     private static String hashPassword(String password) throws
