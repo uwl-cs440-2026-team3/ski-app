@@ -1,23 +1,23 @@
 import com.sun.net.httpserver.*;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.net.*;
 import java.security.*;
 import java.security.cert.CertificateException;
 import java.sql.*;
+import java.util.Base64;
 import java.util.concurrent.CountDownLatch;
 import javax.net.ssl.*;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import com.fasterxml.jackson.core.JacksonException;
+import com.fasterxml.jackson.core.*;
 
 public class Main {
     private final static int port = 1041;
     private final static int connectionBacklog = 5;
     private final static String databaseURL = "jdbc:sqlite:ski.db";
-    private static final ObjectMapper JSONMapper = new ObjectMapper();
-    
-    
+    private final static ObjectMapper JSONMapper = new ObjectMapper();
+
     public static void main(String[] args) {
         if (args.length < 2) {
             System.err.println("usage: java Main <path_to_certificate> " +
@@ -124,19 +124,9 @@ public class Main {
                                   Main.connectionBacklog);
     }
 
-    private static void waitUntilShutdown(CountDownLatch shutdownLatch) {
-        // The loop is necessary to make sure we do not terminate due to a
-        // supurious wake-up from a thread interrupt.
-        while (true) {
-            try {
-                shutdownLatch.await();
-                break;
-            } catch (InterruptedException e) {
-            }
-        }
-    }
     private static void registerRoutes(HttpsServer server) {
         server.createContext("/register", Main::handleRegister);
+        server.createContext("/login", Main::handleLogin);
     }
 
     // Register handling helper method
@@ -154,7 +144,7 @@ public class Main {
                 // Unrecognized method
                 notImplemented(hx);
                 return;
-}
+            }
 
             RegisterRequest req;
             try {
@@ -164,7 +154,8 @@ public class Main {
                 return;
             }
 
-            if (req == null || isBlank(req.email) || isBlank(req.name) || isBlank(req.password)) {
+            if (req == null || isBlank(req.email) || isBlank(req.name)
+                    || isBlank(req.password)) {
                 badRequest(hx, "Missing required fields");
                 return;
             }
@@ -178,7 +169,8 @@ public class Main {
             }
 
             try (Connection conn = DriverManager.getConnection(databaseURL)) {
-            String sql = "INSERT INTO users (email, name, pwhash, role_mask) VALUES (?, ?, ?, ?)";
+                String sql =
+                    "INSERT INTO users (email, name, pwhash, role_mask) VALUES (?, ?, ?, ?)";
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, req.email);
                     ps.setString(2, req.name);
@@ -202,7 +194,8 @@ public class Main {
         return s == null || s.trim().isEmpty();
     }
 
-    private static void sendText(HttpExchange hx, int status, String body) throws IOException {
+    private static void sendText(HttpExchange hx, int status,
+                                 String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         hx.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
         hx.sendResponseHeaders(status, bytes.length);
@@ -211,7 +204,8 @@ public class Main {
         }
     }
 
-    private static void badRequest(HttpExchange hx, String msg) throws IOException {
+    private static void badRequest(HttpExchange hx,
+                                   String msg) throws IOException {
         sendText(hx, 400, msg);
     }
 
@@ -219,25 +213,112 @@ public class Main {
         sendText(hx, 409, msg);
     }
 
-    private static void methodNotAllowed(HttpExchange hx, String allow) throws IOException {
+    private static void methodNotAllowed(HttpExchange hx,
+                                         String allow) throws IOException {
         hx.getResponseHeaders().set("Allow", allow);
         hx.sendResponseHeaders(405, -1);
     }
 
     private static boolean isRecognizedHttpMethod(String m) {
         return "GET".equals(m) || "HEAD".equals(m) || "POST".equals(m) ||
-            "PUT".equals(m) || "DELETE".equals(m) || "OPTIONS".equals(m) ||
-            "PATCH".equals(m) || "TRACE".equals(m) || "CONNECT".equals(m);
+               "PUT".equals(m) || "DELETE".equals(m) || "OPTIONS".equals(m) ||
+               "PATCH".equals(m) || "TRACE".equals(m) || "CONNECT".equals(m);
     }
 
     private static void notImplemented(HttpExchange hx) throws IOException {
         hx.sendResponseHeaders(501, -1);
     }
 
-    private static String hashPassword(String password) throws NoSuchAlgorithmException {
+    private static String hashPassword(String password) throws
+        NoSuchAlgorithmException {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
         return Base64.getEncoder().encodeToString(hash);
     }
 
+    private static void handleLogin(HttpExchange hx) throws IOException {
+        try {
+            String method = hx.getRequestMethod();
+            if ("POST".equals(method)) {
+                // Continue
+            } else if (isRecognizedHttpMethod(method)) {
+                Main.methodNotAllowed(hx, "POST");
+                return;
+            } else {
+                Main.notImplemented(hx);
+                return;
+            }
+
+            LoginRequest req;
+            try {
+                req = JSONMapper.readValue(hx.getRequestBody(), LoginRequest.class);
+            } catch (JacksonException je) {
+                badRequest(hx, "Invalid JSON");
+                return;
+            }
+
+            try {
+                Main.authenticate(hx, req);
+            } catch (NoSuchAlgorithmException e) {
+                Main.sendText(hx, 500, "Server misconfigured");
+            }
+        } finally {
+            hx.close();
+        }
+    }
+
+    private static class LoginRequest {
+        public String email;
+        public String name;
+        public String password;
+    }
+
+    private static void authenticate(HttpExchange hx,
+                                     LoginRequest login) throws IOException, NoSuchAlgorithmException {
+        try (Connection conn = DriverManager.getConnection(Main.databaseURL)) {
+            PreparedStatement query =
+                conn.prepareStatement("SELECT (pwhash) FROM users WHERE email = ?");
+            query.setString(1, login.email);
+            ResultSet result = query.executeQuery();
+            if (!result.first()) {
+                hx.sendResponseHeaders(403, 0);
+            } else {
+                // There can only be zero or one result rows, since emails are
+                // constrained to be unique.
+                String pwhash = result.getString("pwhash");
+                if (pwhash.equals(Main.hashPassword(login.password))) {
+                    byte[] token = new byte[256];
+                    new SecureRandom().nextBytes(token);
+                    String s = Base64.getUrlEncoder().withoutPadding().encodeToString(token);
+                    try {
+                        String response = Main.JSONMapper.writeValueAsString(new Token(s));
+                        Main.sendText(hx, 200, "logged in");
+                        hx.getResponseBody().write(response.getBytes());
+                    } catch (JsonProcessingException e) {
+                        e.printStackTrace(System.err);
+                        hx.sendResponseHeaders(500, 0);
+                    }
+                } else {
+                    hx.sendResponseHeaders(403, 0);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace(System.err);
+            hx.sendResponseHeaders(500, 0);
+        }
+    }
+
+    record Token(String token) {};
+
+    private static void waitUntilShutdown(CountDownLatch shutdownLatch) {
+        // The loop is necessary to make sure we do not terminate due to a
+        // supurious wake-up from a thread interrupt.
+        while (true) {
+            try {
+                shutdownLatch.await();
+                break;
+            } catch (InterruptedException e) {
+            }
+        }
+    }
 }
