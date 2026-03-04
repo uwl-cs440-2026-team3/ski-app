@@ -127,7 +127,8 @@ public class Main {
     private static void registerRoutes(HttpsServer server) {
         server.createContext("/register",
                              (HttpExchange hx) -> new RegistrationHandler(hx).handleRegister());
-        server.createContext("/login", Main::handleLogin);
+        server.createContext("/login",
+                             (HttpExchange hx) -> new LoginHandler(hx).handleLogin());
     }
 
     private static class RegistrationHandler {
@@ -169,7 +170,7 @@ public class Main {
 
                 String hash;
                 try {
-                    hash = hashPassword(req.password);
+                    hash = Main.hashPassword(req.password);
                 } catch (NoSuchAlgorithmException e) {
                     this.sendText(500, "Server misconfigured");
                     return;
@@ -237,39 +238,121 @@ public class Main {
         return s == null || s.trim().isEmpty();
     }
 
-    private static void sendText(HttpExchange hx, int status,
-                                 String body) throws IOException {
-        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-        hx.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
-        hx.sendResponseHeaders(status, bytes.length);
-        try (OutputStream os = hx.getResponseBody()) {
-            os.write(bytes);
+    private static class LoginHandler {
+        private HttpExchange hx;
+
+        public LoginHandler(HttpExchange hx) {
+            this.hx = hx;
         }
-    }
 
-    private static void badRequest(HttpExchange hx,
-                                   String msg) throws IOException {
-        sendText(hx, 400, msg);
-    }
+        private void sendText(int status,
+                              String body) throws IOException {
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            this.hx.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+            this.hx.sendResponseHeaders(status, bytes.length);
+            try (OutputStream os = this.hx.getResponseBody()) {
+                os.write(bytes);
+            }
+        }
 
-    private static void conflict(HttpExchange hx, String msg) throws IOException {
-        sendText(hx, 409, msg);
-    }
+        private void badRequest(
+            String msg) throws IOException {
+            this.sendText(400, msg);
+        }
 
-    private static void methodNotAllowed(HttpExchange hx,
-                                         String allow) throws IOException {
-        hx.getResponseHeaders().set("Allow", allow);
-        hx.sendResponseHeaders(405, -1);
-    }
+        private void conflict(String msg) throws IOException {
+            this.sendText(409, msg);
+        }
 
-    private static boolean isRecognizedHttpMethod(String m) {
-        return "GET".equals(m) || "HEAD".equals(m) || "POST".equals(m) ||
-               "PUT".equals(m) || "DELETE".equals(m) || "OPTIONS".equals(m) ||
-               "PATCH".equals(m) || "TRACE".equals(m) || "CONNECT".equals(m);
-    }
+        private void methodNotAllowed(
+            String allow) throws IOException {
+            this.hx.getResponseHeaders().set("Allow", allow);
+            this.hx.sendResponseHeaders(405, -1);
+        }
 
-    private static void notImplemented(HttpExchange hx) throws IOException {
-        hx.sendResponseHeaders(501, -1);
+        private static boolean isRecognizedHttpMethod(String m) {
+            return "GET".equals(m) || "HEAD".equals(m) || "POST".equals(m) ||
+                   "PUT".equals(m) || "DELETE".equals(m) || "OPTIONS".equals(m) ||
+                   "PATCH".equals(m) || "TRACE".equals(m) || "CONNECT".equals(m);
+        }
+
+        private void notImplemented() throws IOException {
+            this.hx.sendResponseHeaders(501, -1);
+        }
+
+        private void handleLogin() throws IOException {
+            try {
+                String method = this.hx.getRequestMethod();
+                if ("POST".equals(method)) {
+                    // Continue
+                } else if (LoginHandler.isRecognizedHttpMethod(method)) {
+                    this.methodNotAllowed("POST");
+                    return;
+                } else {
+                    this.notImplemented();
+                    return;
+                }
+
+                LoginRequest req;
+                try {
+                    req = JSONMapper.readValue(this.hx.getRequestBody(), LoginRequest.class);
+                } catch (JacksonException je) {
+                    this.badRequest("Invalid JSON");
+                    return;
+                }
+
+                try {
+                    this.authenticate(req);
+                } catch (NoSuchAlgorithmException e) {
+                    this.sendText(500, "Server misconfigured");
+                }
+            } finally {
+                this.hx.close();
+            }
+        }
+
+        private static class LoginRequest {
+            public String email;
+            public String name;
+            public String password;
+        }
+
+        private void authenticate(
+            LoginRequest login) throws IOException, NoSuchAlgorithmException {
+            try (Connection conn = DriverManager.getConnection(Main.databaseURL)) {
+                PreparedStatement query =
+                    conn.prepareStatement("SELECT (pwhash) FROM users WHERE email = ?");
+                query.setString(1, login.email);
+                ResultSet result = query.executeQuery();
+                if (!result.first()) {
+                    this.hx.sendResponseHeaders(403, 0);
+                } else {
+                    // There can only be zero or one result rows, since emails are
+                    // constrained to be unique.
+                    String pwhash = result.getString("pwhash");
+                    if (pwhash.equals(Main.hashPassword(login.password))) {
+                        byte[] token = new byte[256];
+                        new SecureRandom().nextBytes(token);
+                        String s = Base64.getUrlEncoder().withoutPadding().encodeToString(token);
+                        try {
+                            String response = Main.JSONMapper.writeValueAsString(new Token(s));
+                            this.sendText(200, "logged in");
+                            this.hx.getResponseBody().write(response.getBytes());
+                        } catch (JsonProcessingException e) {
+                            e.printStackTrace(System.err);
+                            this.hx.sendResponseHeaders(500, 0);
+                        }
+                    } else {
+                        this.hx.sendResponseHeaders(403, 0);
+                    }
+                }
+            } catch (SQLException e) {
+                e.printStackTrace(System.err);
+                this.hx.sendResponseHeaders(500, 0);
+            }
+        }
+
+        record Token(String token) {};
     }
 
     private static String hashPassword(String password) throws
@@ -278,80 +361,6 @@ public class Main {
         byte[] hash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
         return Base64.getEncoder().encodeToString(hash);
     }
-
-    private static void handleLogin(HttpExchange hx) throws IOException {
-        try {
-            String method = hx.getRequestMethod();
-            if ("POST".equals(method)) {
-                // Continue
-            } else if (Main.isRecognizedHttpMethod(method)) {
-                Main.methodNotAllowed(hx, "POST");
-                return;
-            } else {
-                Main.notImplemented(hx);
-                return;
-            }
-
-            LoginRequest req;
-            try {
-                req = JSONMapper.readValue(hx.getRequestBody(), LoginRequest.class);
-            } catch (JacksonException je) {
-                Main.badRequest(hx, "Invalid JSON");
-                return;
-            }
-
-            try {
-                Main.authenticate(hx, req);
-            } catch (NoSuchAlgorithmException e) {
-                Main.sendText(hx, 500, "Server misconfigured");
-            }
-        } finally {
-            hx.close();
-        }
-    }
-
-    private static class LoginRequest {
-        public String email;
-        public String name;
-        public String password;
-    }
-
-    private static void authenticate(HttpExchange hx,
-                                     LoginRequest login) throws IOException, NoSuchAlgorithmException {
-        try (Connection conn = DriverManager.getConnection(Main.databaseURL)) {
-            PreparedStatement query =
-                conn.prepareStatement("SELECT (pwhash) FROM users WHERE email = ?");
-            query.setString(1, login.email);
-            ResultSet result = query.executeQuery();
-            if (!result.first()) {
-                hx.sendResponseHeaders(403, 0);
-            } else {
-                // There can only be zero or one result rows, since emails are
-                // constrained to be unique.
-                String pwhash = result.getString("pwhash");
-                if (pwhash.equals(Main.hashPassword(login.password))) {
-                    byte[] token = new byte[256];
-                    new SecureRandom().nextBytes(token);
-                    String s = Base64.getUrlEncoder().withoutPadding().encodeToString(token);
-                    try {
-                        String response = Main.JSONMapper.writeValueAsString(new Token(s));
-                        Main.sendText(hx, 200, "logged in");
-                        hx.getResponseBody().write(response.getBytes());
-                    } catch (JsonProcessingException e) {
-                        e.printStackTrace(System.err);
-                        hx.sendResponseHeaders(500, 0);
-                    }
-                } else {
-                    hx.sendResponseHeaders(403, 0);
-                }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace(System.err);
-            hx.sendResponseHeaders(500, 0);
-        }
-    }
-
-    record Token(String token) {};
 
     private static void waitUntilShutdown(CountDownLatch shutdownLatch) {
         // The loop is necessary to make sure we do not terminate due to a
