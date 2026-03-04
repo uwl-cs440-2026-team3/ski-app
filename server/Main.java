@@ -126,16 +126,16 @@ public class Main {
 
     private static void registerRoutes(HttpsServer server) {
         server.createContext("/register",
-                             (HttpExchange hx) -> new RegistrationHandler(hx).handleRegister());
+                             (HttpExchange hx) -> new RegistrationHandler(hx).handle());
         server.createContext("/login",
-                             (HttpExchange hx) -> new LoginHandler(hx).handleLogin());
+                             (HttpExchange hx) -> new LoginHandler(hx).handle());
     }
 
     private static class RequestLifecycle {
         protected HttpExchange hx;
 
         public RequestLifecycle(HttpExchange hx) {
-          this.hx = hx;
+            this.hx = hx;
         }
 
         protected static boolean isRecognizedHttpMethod(String m) {
@@ -176,7 +176,7 @@ public class Main {
             super(hx);
         }
 
-        private void handleRegister() throws IOException {
+        private void handle() throws IOException {
             try {
                 String method = this.hx.getRequestMethod();
 
@@ -246,7 +246,7 @@ public class Main {
             super(hx);
         }
 
-        private void handleLogin() throws IOException {
+        private void handle() throws IOException {
             try {
                 String method = this.hx.getRequestMethod();
                 if ("POST".equals(method)) {
