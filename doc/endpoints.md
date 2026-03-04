@@ -4,7 +4,7 @@ All requests use JSON in the request body. Response formats are documented with 
 
 There are no constraints on the length of any fields in a JSON request or response. This is not good for security and may be deprecated and removed in future versions.
 
-All request headers and bodies must use ASCII and all response headers bodies will use ASCII.
+All request headers and bodies must use ASCII and all response headers and bodies will use ASCII.
 
 All endpoints may reply with 4xx or 5xx responses as applicable and conforming with RFC 9110. Only response codes with special meaning for a particular endpoint are specifically listed in the documentation for the individual endpoints which follows.
 
