@@ -144,11 +144,17 @@ public class Main {
         try {
             String method = hx.getRequestMethod();
 
-            // This endpoint supports only POST
-            if (!"POST".equals(method)) {
+            if ("POST".equals(method)) {
+                // Continue
+            } else if (isRecognizedHttpMethod(method)) {
+                // Recognized but not supported by this endpoint
                 methodNotAllowed(hx, "POST");
                 return;
-            }
+            } else {
+                // Unrecognized method
+                notImplemented(hx);
+                return;
+}
 
             RegisterRequest req;
             try {
@@ -216,6 +222,16 @@ public class Main {
     private static void methodNotAllowed(HttpExchange hx, String allow) throws IOException {
         hx.getResponseHeaders().set("Allow", allow);
         hx.sendResponseHeaders(405, -1);
+    }
+
+    private static boolean isRecognizedHttpMethod(String m) {
+        return "GET".equals(m) || "HEAD".equals(m) || "POST".equals(m) ||
+            "PUT".equals(m) || "DELETE".equals(m) || "OPTIONS".equals(m) ||
+            "PATCH".equals(m) || "TRACE".equals(m) || "CONNECT".equals(m);
+    }
+
+    private static void notImplemented(HttpExchange hx) throws IOException {
+        hx.sendResponseHeaders(501, -1);
     }
 
     private static String hashPassword(String password) throws NoSuchAlgorithmException {
