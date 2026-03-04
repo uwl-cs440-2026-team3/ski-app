@@ -7,6 +7,9 @@ import java.sql.*;
 import java.util.concurrent.CountDownLatch;
 import javax.net.ssl.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import com.fasterxml.jackson.core.JacksonException;
 
 public class Main {
     private final static int port = 1041;
@@ -97,7 +100,6 @@ public class Main {
         HttpsServer server = Main.getLocalServer();
         server.setHttpsConfigurator(new HttpsConfigurator(ctx));
         Main.registerRoutes(server);
-        System.out.println("ROUTES REGISTERED");
         server.start();
 
         // The Java 17 documentation does not seem to guarantee that the
@@ -134,60 +136,92 @@ public class Main {
         }
     }
     private static void registerRoutes(HttpsServer server) {
-        System.out.println("REGISTER CONTEXT LOADED");
-        server.createContext("/register", (HttpExchange hx) -> {
+        server.createContext("/register", Main::handleRegister);
+    }
+
+    // Register handling helper method
+    private static void handleRegister(HttpExchange hx) throws IOException {
+        try {
+            String method = hx.getRequestMethod();
+
+            // This endpoint supports only POST
+            if (!"POST".equals(method)) {
+                methodNotAllowed(hx, "POST");
+                return;
+            }
+
+            RegisterRequest req;
             try {
-                if (!hx.getRequestMethod().equals("POST")) {
-                    hx.sendResponseHeaders(405, 0);
-                    hx.close();
-                    return;
-                }
+                req = JSONMapper.readValue(hx.getRequestBody(), RegisterRequest.class);
+            } catch (JacksonException je) {
+                badRequest(hx, "Invalid JSON");
+                return;
+            }
 
-                // JSON parse
-                RegisterRequest req =
-                    JSONMapper.readValue(hx.getRequestBody(), RegisterRequest.class);
+            if (req == null || isBlank(req.email) || isBlank(req.name) || isBlank(req.password)) {
+                badRequest(hx, "Missing required fields");
+                return;
+            }
 
-                if (req.email == null || req.password == null || req.name == null) {
-                    hx.sendResponseHeaders(400, 0);
-                    hx.close();
-                    return;
-                }
+            String hash;
+            try {
+                hash = hashPassword(req.password);
+            } catch (NoSuchAlgorithmException e) {
+                sendText(hx, 500, "Server misconfigured");
+                return;
+            }
 
-                // Password hash
-                String hash = hashPassword(req.password);
-
-                // DB insert
-                try (Connection conn = DriverManager.getConnection(databaseURL)) {
-                    String sql = "INSERT INTO users (email, name, pwhash, role_mask) VALUES (?, ?, ?, ?)";
-                    PreparedStatement ps = conn.prepareStatement(sql);
+            try (Connection conn = DriverManager.getConnection(databaseURL)) {
+            String sql = "INSERT INTO users (email, name, pwhash, role_mask) VALUES (?, ?, ?, ?)";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, req.email);
                     ps.setString(2, req.name);
                     ps.setString(3, hash);
-                    ps.setInt(4, 0); // şimdilik role 0
+                    ps.setInt(4, 0);
                     ps.executeUpdate();
                 }
-
-                byte[] response = "registered".getBytes();
-                hx.sendResponseHeaders(201, response.length);
-                hx.getResponseBody().write(response);
-
-            } catch (SQLException e) {
-                hx.sendResponseHeaders(409, 0); // duplicate email
-            } catch (Exception e) {
-                hx.sendResponseHeaders(400, 0);
+            } catch (SQLException se) {
+                // If the UNIQUE constraint (email) has failed, 409 makes sense
+                conflict(hx, "Email already registered");
+                return;
             }
 
+            sendText(hx, 201, "registered");
+        } finally {
             hx.close();
-        });
-    }
-    private static String hashPassword(String password) throws Exception {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] hash = digest.digest(password.getBytes());
-        StringBuilder sb = new StringBuilder();
-        for (byte b : hash) {
-            sb.append(String.format("%02x", b));
         }
-        return sb.toString();
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
+    private static void sendText(HttpExchange hx, int status, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        hx.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+        hx.sendResponseHeaders(status, bytes.length);
+        try (OutputStream os = hx.getResponseBody()) {
+            os.write(bytes);
+        }
+    }
+
+    private static void badRequest(HttpExchange hx, String msg) throws IOException {
+        sendText(hx, 400, msg);
+    }
+
+    private static void conflict(HttpExchange hx, String msg) throws IOException {
+        sendText(hx, 409, msg);
+    }
+
+    private static void methodNotAllowed(HttpExchange hx, String allow) throws IOException {
+        hx.getResponseHeaders().set("Allow", allow);
+        hx.sendResponseHeaders(405, -1);
+    }
+
+    private static String hashPassword(String password) throws NoSuchAlgorithmException {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder().encodeToString(hash);
     }
 
 }
