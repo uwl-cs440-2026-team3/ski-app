@@ -280,10 +280,11 @@ public class Main {
             }
 
             try {
-                if (this.authenticates(req)) {
-                    this.sendBearerToken();
+                String role = this.authenticate(req);
+                if (!role.equals("noauth")) {
+                    this.sendLoginSuccess(role);
                 } else {
-                    this.sendFailedLogin();
+                    this.sendLoginFailure();
                 }
             } catch (SQLException e) {
                 e.printStackTrace(System.err);
@@ -296,27 +297,38 @@ public class Main {
             }
         }
 
-        private boolean authenticates(
+        // Returns the role; the special "noauth" value indicates an authenticatin failure.
+        private String authenticate(
             LoginRequest login) throws SQLException, IOException,
             NoSuchAlgorithmException {
             try (Connection conn = DriverManager.getConnection(Main.databaseURL)) {
                 PreparedStatement query =
-                    conn.prepareStatement("SELECT (pwhash) FROM users WHERE email = ?");
+                    conn.prepareStatement(
+                        "SELECT pwhash, role_mask FROM users WHERE email = ?");
                 query.setString(1, login.email);
                 ResultSet result = query.executeQuery();
 
                 if (!result.next()) {
-                    return false;
+                    return "noauth";
                 }
 
                 // There can only be zero or one result rows, since emails are
                 // constrained to be unique.
-                return result.getString("pwhash").equals(Main.hashPassword(login.password));
+                if (result.getString("pwhash").equals(Main.hashPassword(login.password))) {
+                    return this.getRole(result.getInt("role_mask"));
+                } else {
+                    return "noauth";
+                }
             }
         }
 
-        private void sendBearerToken() throws IOException, JsonProcessingException {
-            LoginResponse responseData = new LoginResponse(this.genToken(), "skier");
+        private String getRole(int roleMask) {
+            return roleMask == 0 ? "skier" : "admin";
+        }
+
+        private void sendLoginSuccess(String role) throws IOException,
+            JsonProcessingException {
+            LoginResponse responseData = new LoginResponse(this.genToken(), role);
             String response = Main.JSONMapper.writeValueAsString(responseData);
             this.sendText(200, response);
         }
@@ -329,7 +341,7 @@ public class Main {
                    .encodeToString(token);
         }
 
-        private void sendFailedLogin() throws IOException {
+        private void sendLoginFailure() throws IOException {
             this.sendText(403, "Unauthorized Credentials");
         }
 
