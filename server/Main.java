@@ -15,6 +15,8 @@ import com.fasterxml.jackson.core.*;
 public class Main {
     private final static int port = 1041;
     private final static int connectionBacklog = 5;
+    private final static String adminEmail = "jvanderzee@apache.org";
+    private final static String adminPassword = "admin"; // for high security
     private final static String databaseURL = "jdbc:sqlite:ski.db";
     private final static ObjectMapper JSONMapper = new ObjectMapper();
 
@@ -78,19 +80,34 @@ public class Main {
         // This routine must be called prior to accepting any client
         // connections, to ensure the database exists, and to avoid
         // synchronization issues, as this routine is not threadsafe.
-        String sql = """
-                     CREATE TABLE IF NOT EXISTS users (
-                         userid INTEGER PRIMARY KEY ASC AUTOINCREMENT,
-                         email TEXT NOT NULL UNIQUE,
-                         name TEXT NOT NULL,
-                         pwhash TEXT NOT NULL,
-                         role_mask INTEGER DEFAULT 0);
+        String sqlCreateTable = """
+                                CREATE TABLE IF NOT EXISTS users (
+                                    userid INTEGER PRIMARY KEY ASC AUTOINCREMENT,
+                                    email TEXT NOT NULL UNIQUE,
+                                    name TEXT NOT NULL,
+                                    pwhash TEXT NOT NULL,
+                                    role_mask INTEGER DEFAULT 0);
+
         """;
+
+        String sqlRegisterAdmin = """
+                                  INSERT INTO users (email, name, pwhash, role_mask)
+                                  VALUES (?, 'Admin', ?, 1)
+                                  ON CONFLICT DO NOTHING;
+        """;
+
         try (Connection conn = DriverManager.getConnection(url)) {
             conn.setAutoCommit(true);
-            conn.prepareStatement(sql).execute();
+            conn.prepareStatement(sqlCreateTable).execute();
+            PreparedStatement statement = conn.prepareStatement(sqlRegisterAdmin);
+            statement.setString(1, Main.adminEmail);
+            statement.setString(2, Main.hashPassword(Main.adminPassword));
+            statement.execute();
         } catch (SQLException e) {
             e.printStackTrace(System.err);
+            System.exit(1);
+        } catch (NoSuchAlgorithmException e) {
+            System.err.println("Fatal: Missing hash algorithm.");
             System.exit(1);
         }
     }
