@@ -167,8 +167,10 @@ public class Main {
                              (HttpExchange hx) -> new LoginHandler(hx).handle());
         server.createContext("/team",
                              (HttpExchange hx) -> new TeamCreateHandler(hx).handle());
+        server.createContext("/course",
+                             (HttpExchange hx) -> new CourseCreateHandler(hx).handle());
         server.createContext("/registercoach",
-                (HttpExchange hx) -> new CoachRegistrationHandler(hx).handle());
+							(HttpExchange hx) -> new CoachRegistrationHandler(hx).handle());
     }
     
 
