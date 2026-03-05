@@ -14,20 +14,8 @@ public class RouteContext {
     private static ConcurrentHashMap<String, String> sessions = new
         ConcurrentHashMap<>();
 
-    private static class RegisterRequest {
-        public String email;
-        public String name;
-        public String password;
-    }
-
-    private static class TeamCreateRequest {
-        public String name;
-    }
-
-
-    private static class CourseCreateRequest {
-        public String name;
-    }
+    // Shared by both skier and coach registration.
+    private record RegisterRequest(String email, String name, String password) {};
 
     public static void registerRoutes(HttpsServer server) {
         server.createContext("/register",
@@ -220,6 +208,8 @@ public class RouteContext {
 
             this.sendText(201, "Team created");
         }
+
+        private record TeamCreateRequest(String name) {};
     }
 
     private static class CourseCreateHandler extends RequestLifecycle {
@@ -267,7 +257,10 @@ public class RouteContext {
 
             this.sendText(201, "Course created");
         }
+
+        private record CourseCreateRequest(String name) {};
     }
+
     private static class LoginHandler extends RequestLifecycle {
         public LoginHandler(HttpExchange hx) {
             super(hx);
