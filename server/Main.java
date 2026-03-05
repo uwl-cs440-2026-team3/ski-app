@@ -8,7 +8,7 @@ import java.sql.*;
 import java.util.Base64;
 import java.util.concurrent.CountDownLatch;
 import javax.net.ssl.*;
-
+import java.util.concurrent.ConcurrentHashMap;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.*;
 
@@ -19,6 +19,7 @@ public class Main {
     private final static String adminPassword = "admin"; // for high security
     private final static String databaseURL = "jdbc:sqlite:ski.db";
     private final static ObjectMapper JSONMapper = new ObjectMapper();
+    private static ConcurrentHashMap<String, String> sessions = new ConcurrentHashMap<>();
 
     public static void main(String[] args) {
         if (args.length < 2) {
@@ -51,6 +52,10 @@ public class Main {
         public String email;
         public String name;
         public String password;
+    }
+
+    private static class TeamCreateRequest {
+        public String name;
     }
 
     private static KeyManager[] loadCertificateOrBust(File cert,
@@ -88,6 +93,10 @@ public class Main {
                                     pwhash TEXT NOT NULL,
                                     role_mask INTEGER DEFAULT 0);
 
+                                CREATE TABLE IF NOT EXISTS teams (
+                                    teamid INTEGER PRIMARY KEY ASC AUTOINCREMENT,
+                                    name TEXT NOT NULL UNIQUE);
+
         """;
 
         String sqlRegisterAdmin = """
@@ -98,7 +107,8 @@ public class Main {
 
         try (Connection conn = DriverManager.getConnection(url)) {
             conn.setAutoCommit(true);
-            conn.prepareStatement(sqlCreateTable).execute();
+            Statement stmt = conn.createStatement();
+            stmt.executeUpdate(sqlCreateTable);
             PreparedStatement statement = conn.prepareStatement(sqlRegisterAdmin);
             statement.setString(1, Main.adminEmail);
             statement.setString(2, Main.hashPassword(Main.adminPassword));
@@ -146,6 +156,8 @@ public class Main {
                              (HttpExchange hx) -> new RegistrationHandler(hx).handle());
         server.createContext("/login",
                              (HttpExchange hx) -> new LoginHandler(hx).handle());
+        server.createContext("/team",
+                             (HttpExchange hx) -> new TeamCreateHandler(hx).handle());
     }
 
     private static abstract class RequestLifecycle {
@@ -161,7 +173,7 @@ public class Main {
 
                 if ("POST".equals(method)) {
                     // Continue
-                } else if (this.isRecognizedHttpMethod(method)) {
+                } else if (RequestLifecycle.isRecognizedHttpMethod(method)) {
                     this.methodNotAllowed("POST");
                     return;
                 } else {
@@ -264,6 +276,60 @@ public class Main {
         return s == null || s.trim().isEmpty();
     }
 
+    private static class TeamCreateHandler extends RequestLifecycle {
+            public TeamCreateHandler(HttpExchange hx) { super(hx); }
+
+            @Override
+            void handleDetail() throws IOException {
+                // Get the token first
+                String auth = this.hx.getRequestHeaders().getFirst("Authorization");
+                if (auth == null || !auth.startsWith("Bearer ")) {
+                    this.sendText(403, "Missing token");
+                    return;
+                }
+
+                String token = auth.substring("Bearer ".length()).trim();
+
+                // Token -> role
+                String role = Main.sessions.get(token);
+                if (role == null || !role.equals("admin")) {
+                    this.sendText(403, "Not authorized");
+                    return;
+                }
+
+                // Read JSON
+                TeamCreateRequest req;
+                try {
+                    req = JSONMapper.readValue(this.hx.getRequestBody(), TeamCreateRequest.class);
+                } catch (JacksonException je) {
+                    this.badRequest("Invalid JSON");
+                    return;
+                }
+
+                if (req == null || isBlank(req.name)) {
+                    this.badRequest("Missing team name");
+                    return;
+                }
+
+                // DB insert
+                try (Connection conn = DriverManager.getConnection(databaseURL)) {
+                    String sql = "INSERT INTO teams (name) VALUES (?)";
+                    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                        ps.setString(1, req.name);
+                        ps.executeUpdate();
+                    }
+                } catch (SQLException se) {
+                    if (se.getMessage().contains("UNIQUE")) {
+                        this.conflict("Team already exists");
+                    } else {
+                        this.sendText(500, se.getMessage());
+                    }
+                    return;
+                }
+
+                this.sendText(201, "Team created");
+            }
+        }
     private static class LoginHandler extends RequestLifecycle {
         public LoginHandler(HttpExchange hx) {
             super(hx);
@@ -297,7 +363,7 @@ public class Main {
             }
         }
 
-        // Returns the role; the special "noauth" value indicates an authenticatin failure.
+        // Returns the role; the special "noauth" value indicates an authentication failure.
         private String authenticate(
             LoginRequest login) throws SQLException, IOException,
             NoSuchAlgorithmException {
@@ -328,7 +394,10 @@ public class Main {
 
         private void sendLoginSuccess(String role) throws IOException,
             JsonProcessingException {
-            LoginResponse responseData = new LoginResponse(this.genToken(), role);
+            String token = this.genToken();
+            Main.sessions.put(token, role);
+            
+            LoginResponse responseData = new LoginResponse(token, role);
             String response = Main.JSONMapper.writeValueAsString(responseData);
             this.sendText(200, response);
         }
@@ -345,7 +414,7 @@ public class Main {
             this.sendText(403, "Unauthorized Credentials");
         }
 
-        private record LoginRequest(String email, String name, String password) {};
+        private record LoginRequest(String email, String password) {};
         private record LoginResponse(String token, String role) {};
     }
 
