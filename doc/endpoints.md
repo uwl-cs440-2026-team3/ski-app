@@ -58,3 +58,25 @@ If a login succeeds, the response includes the following JSON response:
 The token field represents a bearer token which the client may use in subsequent requests to authorize certain endpoints. The role field will be one of "skier", "coach", or "admin", indicating the role of the logged-in user.
 
 The response will be 403 Forbidden if the email has not been registered or the password did not match. Note that it can be determined from `/register` whether an email exists, so the 403 response for an unknown email should not be considered to provide much security.
+
+### /registercoach
+
+#### Request
+
+```json
+{
+  "email" : email,
+  "name" : name,
+  "password" : password
+}
+```
+
+Registers a coach with the specified email, name, and password. The email must be a well-formed email address; the behavior for ill-formed email addresses is undefined to reserve backwards compatability for when we implement error handling.
+
+#### Response
+* 201 Created - if the registration succeeded
+* 409 Conflict - if the email has already been registered
+* 403 Forbidden - Missing or invalid authorization token
+* 400 Bad Request - Invalid JSON or missing required fields
+
+The registration will fail if the email in the request has already been used to register a user (with any role). The name is not required to be unique.
