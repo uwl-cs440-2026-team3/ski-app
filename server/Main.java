@@ -393,9 +393,16 @@ public class Main {
         }
 
 		private String getRole(int roleMask) {
-			if (roleMask == 0) return "skier";
-			if (roleMask == 2) return "coach";
-			return "admin";
+			switch(roleMask) {
+				case 2:
+					return "coach";
+				case 1:
+					return "admin";
+				case 0:
+					return "skier";
+				default:
+					return "noauth";
+			}
 		}
 
         private void sendLoginSuccess(String role) throws IOException,
@@ -440,7 +447,7 @@ public class Main {
         void handleDetail() throws IOException {
         	
             // Get the token first
-			String role = this.requireAdmin();
+			String role = this.requireAdmin(); // exists in main, slight desync
 			if (role == null) return;
             
             RegisterRequest req;
