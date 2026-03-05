@@ -57,6 +57,7 @@ public class Main {
     private static class TeamCreateRequest {
         public String name;
     }
+    
 
     private static class CourseCreateRequest {
         public String name;
@@ -166,9 +167,10 @@ public class Main {
                              (HttpExchange hx) -> new LoginHandler(hx).handle());
         server.createContext("/team",
                              (HttpExchange hx) -> new TeamCreateHandler(hx).handle());
-        server.createContext("/course",
-                             (HttpExchange hx) -> new CourseCreateHandler(hx).handle());
+        server.createContext("/registercoach",
+                (HttpExchange hx) -> new CoachRegistrationHandler(hx).handle());
     }
+    
 
     private static abstract class RequestLifecycle {
         protected HttpExchange hx;
@@ -448,9 +450,18 @@ public class Main {
             }
         }
 
-        private String getRole(int roleMask) {
-            return roleMask == 0 ? "skier" : "admin";
-        }
+		private String getRole(int roleMask) {
+			switch(roleMask) {
+				case 2:
+					return "coach";
+				case 1:
+					return "admin";
+				case 0:
+					return "skier";
+				default:
+					return "noauth";
+			}
+		}
 
         private void sendLoginSuccess(String role) throws IOException,
             JsonProcessingException {
@@ -485,6 +496,61 @@ public class Main {
         return Base64.getEncoder().encodeToString(hash);
     }
 
+    private static class CoachRegistrationHandler extends RequestLifecycle {
+        public CoachRegistrationHandler(HttpExchange hx) {
+            super(hx);
+        }
+
+        @Override
+        void handleDetail() throws IOException {
+        	
+            // Get the token first
+			String role = this.requireAdmin(); // exists in main, slight desync
+			if (role == null) return;
+            
+            RegisterRequest req;
+            try {
+                req = JSONMapper.readValue(this.hx.getRequestBody(), RegisterRequest.class);
+            } catch (JacksonException je) {
+                this.badRequest("Invalid JSON");
+                return;
+            }
+
+            if (req == null || isBlank(req.email) || isBlank(req.name)
+                    || isBlank(req.password)) {
+                this.badRequest("Missing required fields");
+                return;
+            }
+
+            String hash;
+            try {
+                hash = Main.hashPassword(req.password);
+            } catch (NoSuchAlgorithmException e) {
+                this.sendText(500, "Server misconfigured");
+                return;
+            }
+
+            try (Connection conn = DriverManager.getConnection(databaseURL)) {
+                String sql =
+                    "INSERT INTO users (email, name, pwhash, role_mask) VALUES (?, ?, ?, ?)";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setString(1, req.email);
+                    ps.setString(2, req.name);
+                    ps.setString(3, hash);
+                    ps.setInt(4, 2);
+                    ps.executeUpdate();
+                }
+            } catch (SQLException se) {
+				// noted as potentionally having other fail points, something to think about later
+                // If the UNIQUE constraint (email) has failed, 409 makes sense
+                this.conflict("Email already registered");
+                return;
+            }
+
+            this.sendText(201, "registered coach");
+        }
+    }
+    
     private static void waitUntilShutdown(CountDownLatch shutdownLatch) {
         // The loop is necessary to make sure we do not terminate due to a
         // supurious wake-up from a thread interrupt.
