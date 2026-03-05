@@ -58,6 +58,10 @@ public class Main {
         public String name;
     }
 
+    private static class CourseCreateRequest {
+        public String name;
+    }
+
     private static KeyManager[] loadCertificateOrBust(File cert,
             char[] passphrase) {
         try {
@@ -95,6 +99,10 @@ public class Main {
 
                                 CREATE TABLE IF NOT EXISTS teams (
                                     teamid INTEGER PRIMARY KEY ASC AUTOINCREMENT,
+                                    name TEXT NOT NULL UNIQUE);
+                                
+                                CREATE TABLE IF NOT EXISTS courses (
+                                    courseid INTEGER PRIMARY KEY ASC AUTOINCREMENT,
                                     name TEXT NOT NULL UNIQUE);
 
         """;
@@ -158,6 +166,8 @@ public class Main {
                              (HttpExchange hx) -> new LoginHandler(hx).handle());
         server.createContext("/team",
                              (HttpExchange hx) -> new TeamCreateHandler(hx).handle());
+        server.createContext("/course",
+                             (HttpExchange hx) -> new CourseCreateHandler(hx).handle());
     }
 
     private static abstract class RequestLifecycle {
@@ -220,6 +230,26 @@ public class Main {
         private void notImplemented() throws IOException {
             this.hx.sendResponseHeaders(501, -1);
         }
+
+        protected String requireAdmin() throws IOException {
+            // Get the token first
+            String auth = this.hx.getRequestHeaders().getFirst("Authorization");
+            if (auth == null || !auth.startsWith("Bearer ")) {
+                this.sendText(403, "Missing token");
+                return null;
+            }
+
+            String token = auth.substring("Bearer ".length()).trim();
+
+            // Token -> role
+            String role = Main.sessions.get(token);
+            if (role == null || !role.equals("admin")) {
+                this.sendText(403, "Not authorized");
+                return null;
+            }
+
+            return role;
+        }
     }
 
     private static class RegistrationHandler extends RequestLifecycle {
@@ -281,22 +311,8 @@ public class Main {
 
             @Override
             void handleDetail() throws IOException {
-                // Get the token first
-                String auth = this.hx.getRequestHeaders().getFirst("Authorization");
-                if (auth == null || !auth.startsWith("Bearer ")) {
-                    this.sendText(403, "Missing token");
-                    return;
-                }
-
-                String token = auth.substring("Bearer ".length()).trim();
-
-                // Token -> role
-                String role = Main.sessions.get(token);
-                if (role == null || !role.equals("admin")) {
-                    this.sendText(403, "Not authorized");
-                    return;
-                }
-
+                String role = this.requireAdmin();
+                if (role == null) return;
                 // Read JSON
                 TeamCreateRequest req;
                 try {
@@ -330,6 +346,50 @@ public class Main {
                 this.sendText(201, "Team created");
             }
         }
+
+    private static class CourseCreateHandler extends RequestLifecycle {
+        public CourseCreateHandler(HttpExchange hx) { super(hx); }
+
+        @Override
+        void handleDetail() throws IOException {
+            
+            String role = this.requireAdmin();
+            if (role == null) return;
+
+            CourseCreateRequest req;
+
+            try {
+                req = JSONMapper.readValue(this.hx.getRequestBody(), CourseCreateRequest.class);
+            } catch (JacksonException je) {
+                this.badRequest("Invalid JSON");
+                return;
+            }
+
+            if (req == null || isBlank(req.name)) {
+                this.badRequest("Missing course name");
+                return;
+            }
+
+            try (Connection conn = DriverManager.getConnection(databaseURL)) {
+                String sql = "INSERT INTO courses (name) VALUES (?)";
+                
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setString(1, req.name);
+                    ps.executeUpdate();
+                }
+            } catch (SQLException se) {
+                if (se.getMessage().contains("UNIQUE")) {
+                    this.conflict("Course already exists");
+                } else {
+                    this.sendText(500, se.getMessage());
+                }
+
+                return;
+            }
+
+            this.sendText(201, "Course created");
+        }
+    }
     private static class LoginHandler extends RequestLifecycle {
         public LoginHandler(HttpExchange hx) {
             super(hx);
