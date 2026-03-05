@@ -58,11 +58,6 @@ public class Main {
         public String name;
     }
     
-    private static class CoachRequest {
-        public String email;
-        public String name;
-        public String password;
-    }
 
     private static KeyManager[] loadCertificateOrBust(File cert,
             char[] passphrase) {
@@ -397,9 +392,11 @@ public class Main {
             }
         }
 
-        private String getRole(int roleMask) {
-            return roleMask == 0 ? "skier" : "admin";
-        }
+		private String getRole(int roleMask) {
+			if (roleMask == 0) return "skier";
+			if (roleMask == 2) return "coach";
+			return "admin";
+		}
 
         private void sendLoginSuccess(String role) throws IOException,
             JsonProcessingException {
@@ -443,20 +440,8 @@ public class Main {
         void handleDetail() throws IOException {
         	
             // Get the token first
-            String auth = this.hx.getRequestHeaders().getFirst("Authorization");
-            if (auth == null || !auth.startsWith("Bearer ")) {
-                this.sendText(403, "Missing token");
-                return;
-            }
-
-            String token = auth.substring("Bearer ".length()).trim();
-
-            // Token -> role
-            String role = Main.sessions.get(token);
-            if (role == null || !role.equals("admin")) {
-                this.sendText(403, "Not authorized");
-                return;
-            }
+			String role = this.requireAdmin();
+			if (role == null) return;
             
             RegisterRequest req;
             try {
@@ -491,6 +476,7 @@ public class Main {
                     ps.executeUpdate();
                 }
             } catch (SQLException se) {
+				// noted as potentionally having other fail points, something to think about later
                 // If the UNIQUE constraint (email) has failed, 409 makes sense
                 this.conflict("Email already registered");
                 return;
