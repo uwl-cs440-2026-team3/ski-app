@@ -369,7 +369,7 @@ public class RouteContext {
         void handleDetail() throws IOException {
 
             // Get the token first
-            String role = this.requireAdmin(); // exists in main, slight desync
+            String role = this.requireAdmin();
             if (role == null) return;
 
             RegisterRequest req;

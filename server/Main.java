@@ -36,21 +36,6 @@ public class Main {
         }
     }
 
-    private static class RegisterRequest {
-        public String email;
-        public String name;
-        public String password;
-    }
-
-    private static class TeamCreateRequest {
-        public String name;
-    }
-
-
-    private static class CourseCreateRequest {
-        public String name;
-    }
-
     private static KeyManager[] loadCertificateOrBust(File cert,
             char[] passphrase) {
         try {
