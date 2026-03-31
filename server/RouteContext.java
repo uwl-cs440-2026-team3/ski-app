@@ -277,6 +277,11 @@ public class RouteContext {
                 return;
             }
 
+            if (req == null || isBlank(req.email) || isBlank(req.password)) {
+                this.badRequest("Missing required fields");
+                return;
+            }
+
             try {
                 String role = this.authenticate(req);
                 if (!role.equals("noauth")) {
