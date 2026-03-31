@@ -299,12 +299,11 @@ public class RouteContext {
         private String authenticate(
             LoginRequest login) throws SQLException, IOException,
             NoSuchAlgorithmException {
-            try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
-                PreparedStatement query =
-                    conn.prepareStatement(
-                        "SELECT pwhash, role_mask FROM users WHERE email = ?");
-                query.setString(1, login.email);
-                ResultSet result = query.executeQuery();
+            String sql = "SELECT pwhash, role_mask FROM users WHERE email = ?";
+            try (Connection conn = DriverManager.getConnection(Config.databaseURL);
+                        PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, login.email);
+                ResultSet result = ps.executeQuery();
 
                 if (!result.next()) {
                     return "noauth";

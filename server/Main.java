@@ -89,12 +89,13 @@ public class Main {
 
         try (Connection conn = DriverManager.getConnection(url)) {
             conn.setAutoCommit(true);
-            Statement stmt = conn.createStatement();
-            stmt.executeUpdate(sqlCreateTable);
-            PreparedStatement statement = conn.prepareStatement(sqlRegisterAdmin);
-            statement.setString(1, Config.adminEmail);
-            statement.setString(2, AuthUtil.hashPassword(Config.adminPassword));
-            statement.execute();
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate(sqlCreateTable);
+                PreparedStatement statement = conn.prepareStatement(sqlRegisterAdmin);
+                statement.setString(1, Config.adminEmail);
+                statement.setString(2, AuthUtil.hashPassword(Config.adminPassword));
+                statement.execute();
+            }
         } catch (SQLException e) {
             e.printStackTrace(System.err);
             System.exit(1);
