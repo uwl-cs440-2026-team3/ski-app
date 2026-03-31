@@ -1,5 +1,6 @@
 import com.sun.net.httpserver.*;
 import java.io.*;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.sql.*;
@@ -16,6 +17,9 @@ public class RouteContext {
 
     // Shared by both skier and coach registration.
     private record RegisterRequest(String email, String name, String password) {};
+    private record LoginRequest(String email, String password) {};
+    private record TeamCreateRequest(String name) {};
+    private record CourseCreateRequest(String name) {};
 
     public static void registerRoutes(HttpsServer server) {
         server.createContext("/register",
@@ -31,11 +35,13 @@ public class RouteContext {
     }
 
 
-    private static abstract class RequestLifecycle {
+    private static abstract class RequestLifecycle<E extends Record> {
         protected HttpExchange hx;
+        private Class<E> recordType;
 
-        public RequestLifecycle(HttpExchange hx) {
+        public RequestLifecycle(HttpExchange hx, Class<E> type) {
             this.hx = hx;
+            this.recordType = type;
         }
 
         public void handle() throws IOException {
@@ -52,13 +58,31 @@ public class RouteContext {
                     return;
                 }
 
-                this.handleDetail();
+                if (!this.isAuthorized()) {
+                    return;
+                }
+
+                E req;
+                try {
+                    req = JSONMapper.readValue(this.hx.getRequestBody(), this.recordType);
+                } catch (JacksonException je) {
+                    this.badRequest("Invalid JSON");
+                    return;
+                }
+
+                if (hasBlankField(req)) {
+                    this.badRequest("Missing or empty JSON fields.");
+                    return;
+                }
+
+                this.handleDetail(req);
             } finally {
                 this.hx.close();
             }
         }
 
-        abstract void handleDetail() throws IOException;
+        abstract boolean isAuthorized() throws IOException;
+        abstract void handleDetail(E req) throws IOException;
 
         protected static boolean isRecognizedHttpMethod(String m) {
             return "GET".equals(m) || "HEAD".equals(m) || "POST".equals(m) ||
@@ -91,8 +115,34 @@ public class RouteContext {
         private void notImplemented() throws IOException {
             this.hx.sendResponseHeaders(501, -1);
         }
+    }
 
-        protected String requireAdmin() throws IOException {
+    private static abstract class UnprivilegedHandler<E extends Record> extends
+        RequestLifecycle<E> {
+
+        public UnprivilegedHandler(HttpExchange hx, Class<E> type) {
+            super(hx, type);
+        }
+
+        @Override
+        boolean isAuthorized() throws IOException {
+            return true;
+        }
+    }
+
+    private static abstract class PrivilegedHandler<E extends Record>
+        extends RequestLifecycle<E> {
+
+        PrivilegedHandler(HttpExchange hx, Class<E> type) {
+            super(hx, type);
+        }
+
+        @Override
+        public boolean isAuthorized() throws IOException {
+            return null != this.requireAdmin();
+        }
+
+        private String requireAdmin() throws IOException {
             // Get the token first
             String auth = this.hx.getRequestHeaders().getFirst("Authorization");
             if (auth == null || !auth.startsWith("Bearer ")) {
@@ -113,27 +163,14 @@ public class RouteContext {
         }
     }
 
-    private static class RegistrationHandler extends RequestLifecycle {
+    private static class RegistrationHandler extends
+        UnprivilegedHandler<RegisterRequest> {
         public RegistrationHandler(HttpExchange hx) {
-            super(hx);
+            super(hx, RegisterRequest.class);
         }
 
         @Override
-        void handleDetail() throws IOException {
-
-            RegisterRequest req;
-            try {
-                req = JSONMapper.readValue(this.hx.getRequestBody(), RegisterRequest.class);
-            } catch (JacksonException je) {
-                this.badRequest("Invalid JSON");
-                return;
-            }
-
-            if (req == null || isBlank(req.email) || isBlank(req.name)
-                    || isBlank(req.password)) {
-                this.badRequest("Missing required fields");
-                return;
-            }
+        void handleDetail(RegisterRequest req) throws IOException {
 
             String hash;
             try {
@@ -163,33 +200,14 @@ public class RouteContext {
         }
     }
 
-    private static boolean isBlank(String s) {
-        return s == null || s.trim().isEmpty();
-    }
-
-    private static class TeamCreateHandler extends RequestLifecycle {
+    private static class TeamCreateHandler extends
+        PrivilegedHandler<TeamCreateRequest> {
         public TeamCreateHandler(HttpExchange hx) {
-            super(hx);
+            super(hx, TeamCreateRequest.class);
         }
 
         @Override
-        void handleDetail() throws IOException {
-            String role = this.requireAdmin();
-            if (role == null) return;
-            // Read JSON
-            TeamCreateRequest req;
-            try {
-                req = JSONMapper.readValue(this.hx.getRequestBody(), TeamCreateRequest.class);
-            } catch (JacksonException je) {
-                this.badRequest("Invalid JSON");
-                return;
-            }
-
-            if (req == null || isBlank(req.name)) {
-                this.badRequest("Missing team name");
-                return;
-            }
-
+        void handleDetail(TeamCreateRequest req) throws IOException {
             // DB insert
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
                 String sql = "INSERT INTO teams (name) VALUES (?)";
@@ -208,36 +226,16 @@ public class RouteContext {
 
             this.sendText(201, "Team created");
         }
-
-        private record TeamCreateRequest(String name) {};
     }
 
-    private static class CourseCreateHandler extends RequestLifecycle {
+    private static class CourseCreateHandler extends
+        PrivilegedHandler<CourseCreateRequest> {
         public CourseCreateHandler(HttpExchange hx) {
-            super(hx);
+            super(hx, CourseCreateRequest.class);
         }
 
         @Override
-        void handleDetail() throws IOException {
-
-            String role = this.requireAdmin();
-            if (role == null) return;
-
-            CourseCreateRequest req;
-
-            try {
-                req = JSONMapper.readValue(this.hx.getRequestBody(),
-                                           CourseCreateRequest.class);
-            } catch (JacksonException je) {
-                this.badRequest("Invalid JSON");
-                return;
-            }
-
-            if (req == null || isBlank(req.name)) {
-                this.badRequest("Missing course name");
-                return;
-            }
-
+        void handleDetail(CourseCreateRequest req) throws IOException {
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
                 String sql = "INSERT INTO courses (name) VALUES (?)";
 
@@ -257,31 +255,15 @@ public class RouteContext {
 
             this.sendText(201, "Course created");
         }
-
-        private record CourseCreateRequest(String name) {};
     }
 
-    private static class LoginHandler extends RequestLifecycle {
+    private static class LoginHandler extends UnprivilegedHandler<LoginRequest> {
         public LoginHandler(HttpExchange hx) {
-            super(hx);
+            super(hx, LoginRequest.class);
         }
 
         @Override
-        void handleDetail() throws IOException {
-            LoginRequest req;
-            try {
-                req = RouteContext.JSONMapper.readValue(this.hx.getRequestBody(),
-                                                        LoginRequest.class);
-            } catch (JacksonException je) {
-                this.badRequest("Invalid JSON");
-                return;
-            }
-
-            if (req == null || isBlank(req.email) || isBlank(req.password)) {
-                this.badRequest("Missing required fields");
-                return;
-            }
-
+        void handleDetail(LoginRequest req) throws IOException {
             try {
                 String role = this.authenticate(req);
                 if (!role.equals("noauth")) {
@@ -290,9 +272,6 @@ public class RouteContext {
                     this.sendLoginFailure();
                 }
             } catch (SQLException e) {
-                e.printStackTrace(System.err);
-                this.sendText(500, "");
-            } catch (JsonProcessingException e) {
                 e.printStackTrace(System.err);
                 this.sendText(500, "");
             } catch (NoSuchAlgorithmException e) {
@@ -361,36 +340,18 @@ public class RouteContext {
             this.sendText(403, "Unauthorized Credentials");
         }
 
-        private record LoginRequest(String email, String password) {};
         private record LoginResponse(String token, String role) {};
     }
 
-    private static class CoachRegistrationHandler extends RequestLifecycle {
+
+    private static class CoachRegistrationHandler extends
+        PrivilegedHandler<RegisterRequest> {
         public CoachRegistrationHandler(HttpExchange hx) {
-            super(hx);
+            super(hx, RegisterRequest.class);
         }
 
         @Override
-        void handleDetail() throws IOException {
-
-            // Get the token first
-            String role = this.requireAdmin();
-            if (role == null) return;
-
-            RegisterRequest req;
-            try {
-                req = JSONMapper.readValue(this.hx.getRequestBody(), RegisterRequest.class);
-            } catch (JacksonException je) {
-                this.badRequest("Invalid JSON");
-                return;
-            }
-
-            if (req == null || isBlank(req.email) || isBlank(req.name)
-                    || isBlank(req.password)) {
-                this.badRequest("Missing required fields");
-                return;
-            }
-
+        void handleDetail(RegisterRequest req) throws IOException {
             String hash;
             try {
                 hash = AuthUtil.hashPassword(req.password);
@@ -418,5 +379,25 @@ public class RouteContext {
 
             this.sendText(201, "registered coach");
         }
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
+    private static boolean hasBlankField(Record req) {
+        for (var component : req.getClass().getRecordComponents()) {
+            try {
+                String value = (String) component.getAccessor().invoke(req);
+                if (isBlank(value)) {
+                    return true;
+                }
+            } catch (IllegalAccessException e) {
+                assert(false);
+            } catch (InvocationTargetException e) {
+                assert(false);
+            }
+        }
+        return false;
     }
 }
