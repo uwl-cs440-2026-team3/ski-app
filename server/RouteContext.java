@@ -4,6 +4,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.sql.*;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.concurrent.*;
 
@@ -20,6 +21,7 @@ public class RouteContext {
     private record LoginRequest(String email, String password) {};
     private record TeamCreateRequest(String name) {};
     private record CourseCreateRequest(String name) {};
+    private record NoBodyRequest() {};
 
     public static void registerRoutes(HttpsServer server) {
         server.createContext("/register",
@@ -32,6 +34,8 @@ public class RouteContext {
                              (HttpExchange hx) -> new CourseCreateHandler(hx).handle());
         server.createContext("/registercoach",
                              (HttpExchange hx) -> new CoachRegistrationHandler(hx).handle());
+        server.createContext("/getmembers",
+                             (HttpExchange hx) -> new GetMembersHandler(hx).handle());
     }
 
 
@@ -378,6 +382,48 @@ public class RouteContext {
 
             this.sendText(201, "registered coach");
         }
+    }
+
+    private static class GetMembersHandler extends
+        PrivilegedHandler<NoBodyRequest> {
+        public GetMembersHandler(HttpExchange hx) {
+            super(hx, NoBodyRequest.class);
+        }
+
+        @Override
+        void handleDetail(NoBodyRequest req) throws IOException {
+
+            try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
+                String sql = "SELECT name, role_mask FROM users";
+
+                // list to hold our gathered members in
+                ArrayList<MemberInfo> members = new ArrayList<>();
+
+                // execute our statement
+                try (PreparedStatement ps = conn.prepareStatement(sql);
+                            ResultSet rs = ps.executeQuery()) {
+
+                    // for each result
+                    while (rs.next()) {
+
+                        // get the name and role mask
+                        String name = rs.getString("name");
+                        int roleMask = rs.getInt("role_mask");
+
+                        // add them to the list
+                        members.add(new MemberInfo(name, roleMask));
+                    }
+                }
+
+                // jsonify it and send it
+                String response = RouteContext.JSONMapper.writeValueAsString(members);
+                this.sendText(200, response);
+            } catch (SQLException se) {
+                this.sendText(500, se.getMessage());
+            }
+        }
+
+        private record MemberInfo(String name, int role_mask) {}
     }
 
     private static boolean isBlank(String s) {
