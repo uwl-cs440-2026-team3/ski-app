@@ -304,23 +304,10 @@ public class RouteContext {
                 // constrained to be unique.
                 if (result.getString("pwhash").equals(AuthUtil.hashPassword(
                         login.password))) {
-                    return this.getRole(result.getInt("role_mask"));
+                    return getRoleName(result.getInt("role_mask"));
                 } else {
                     return "noauth";
                 }
-            }
-        }
-
-        private String getRole(int roleMask) {
-            switch(roleMask) {
-            case 2:
-                return "coach";
-            case 1:
-                return "admin";
-            case 0:
-                return "skier";
-            default:
-                return "noauth";
             }
         }
 
@@ -412,9 +399,16 @@ public class RouteContext {
                         // get the name and role mask
                         String name = rs.getString("name");
                         int roleMask = rs.getInt("role_mask");
+                        String role = getRoleName(rs.getInt("role_mask"));
+                        // This endpoint is authenticated - the role mask
+                        // must be valid or something is corrupt.
+                        assert(!role.equals("noauth"));
 
                         // add them to the list
-                        members.add(new MemberInfo(name, roleMask));
+                        members.add(new MemberInfo(rs.getString("email"),
+                                                   rs.getString("name"),
+                                                   role,
+                                                   ""));
                     }
                 }
 
@@ -426,7 +420,21 @@ public class RouteContext {
             }
         }
 
-        private record MemberInfo(String name, int role_mask) {}
+        private record MemberInfo(String email, String name, String role,
+                                  String team) {}
+    }
+
+    private static String getRoleName(int roleMask) {
+        switch(roleMask) {
+        case 2:
+            return "coach";
+        case 1:
+            return "admin";
+        case 0:
+            return "skier";
+        default:
+            return "noauth";
+        }
     }
 
     private static boolean isBlank(String s) {

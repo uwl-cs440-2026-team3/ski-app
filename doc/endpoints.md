@@ -100,6 +100,7 @@ If the request succeeds, the response body consists of the following JSON respon
 ```json
 [
   {
+    "email" : email,
     "name" : name,
     "role" : role,
     "team" : team
@@ -108,4 +109,4 @@ If the request succeeds, the response body consists of the following JSON respon
 ]
 ```
 
-The response includes all users in the system at the time the request was processed who have the specified role. The users are guaranteed to be sorted by names in ascending, case-insensitive lexicographical order. The role field will be one of "skier", "coach", or "admin". The team field will contain the name of the team the member is assigned to, or the empty string if the member is not assigned to a team.
+The response includes all users in the system at the time the request was processed who have the specified role. The email field can be used as a unique identifier (multiple users may have the same name). The users are guaranteed to be sorted by names in ascending, case-insensitive lexicographical order. The role field will be one of "skier", "coach", or "admin". The team field will contain the name of the team the member is assigned to, or the empty string if the member is not assigned to a team.
