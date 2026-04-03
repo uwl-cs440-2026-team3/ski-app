@@ -8,19 +8,37 @@ Text TODO.
 
 ## Roadmap
 
-* [ ] Endpoint for retrieving users.
-* [ ] Endpoint for scheduling races.
-* [ ] Polish client form for creating course.
-* [ ] Endpoint for retrieving courses.
-* [ ] Endpoint for creating team (assigns all three people at once).
-* [ ] UI forms for creating team.
-* [ ] Endpoint for scheduling a race.
-* [ ] UI forms for scheduling a race.
-* [ ] Endpoint for retrieving races.
+- SERVER (endpoint names largely as placeholder, can be changed, note if they get changed)
+* [ ] Endpoint for retrieving users. /getmember
+* [ ] Endpoint for retrieving teams. /getteam
+* [ ] Endpoint for retrieving courses. /getcourse
+* [ ] Endpoint for scheduling races. /schedulerace
+* [ ] Endpoint for rescheduling races. /reschedulerace
+* [ ] Endpoint for retrieving races. /getrace
+* [ ] Endpoint for cancelling races. /cancelrace
+* [ ] Endpoint for inserting race times. /inserttime
+* [ ] Send email reminders of upcoming races to appropriate users.
+
+- CLIENT (endpoint names largely as placeholder, can be changed, note if they get changed)
+* [ ] Finish user assignment forms when /getmember endpoint is created
+* [ ] Finish and wire race schedule form when /geteams, /getcourse, and /schedulerace become avaliable.
+* [ ] Create a race cancelling from when /getrace and /cancelrace become avaliable 
+* [ ] Determine what the race time inserting form will even look like.
+* [ ] Make the race time inserting form.
+* [ ] Figure out how rescheduling will work.
+* [ ] Create coach and skier forms when related endpoints become avaliable.
+* [ ] Display conflict and other endpoint errors appropiately.
+* [ ] Imploy validation and other constraints when decided upon.
+
+
+- VALIDATION, CONSTRAINT, SECURITY
 * [ ] Input constraints for all endpoints and perform validation on server-side.
 * [ ] Possibly some redundant validation on client side as well for fast feedback and to save bandwidth.
-* [ ] Send email reminders of upcoming races to appropriate users.
 * [ ] Expire session tokens after a set amount of time with no requests.
+* [ ] SSL Cert
+
+- MISC
+* [ ] Add team endpoint to documentation.
 
 ## Usage
 
