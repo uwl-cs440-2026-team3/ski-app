@@ -396,9 +396,6 @@ public class RouteContext {
                     // for each result
                     while (rs.next()) {
 
-                        // get the name and role mask
-                        String name = rs.getString("name");
-                        int roleMask = rs.getInt("role_mask");
                         String role = getRoleName(rs.getInt("role_mask"));
                         // This endpoint is authenticated - the role mask
                         // must be valid or something is corrupt.
