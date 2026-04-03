@@ -42,20 +42,22 @@ public class RouteContext {
     private static abstract class RequestLifecycle<E extends Record> {
         protected HttpExchange hx;
         private Class<E> recordType;
+        private String allowMethod;
 
-        public RequestLifecycle(HttpExchange hx, Class<E> type) {
+        public RequestLifecycle(HttpExchange hx, Class<E> type, String allowMethod) {
             this.hx = hx;
             this.recordType = type;
+            this.allowMethod = allowMethod;
         }
 
         public void handle() throws IOException {
             try {
                 String method = this.hx.getRequestMethod();
 
-                if ("POST".equals(method)) {
+                if (this.allowMethod.equals(method)) {
                     // Continue
                 } else if (RequestLifecycle.isRecognizedHttpMethod(method)) {
-                    this.methodNotAllowed("POST");
+                    this.methodNotAllowed(this.allowMethod);
                     return;
                 } else {
                     this.notImplemented();
@@ -124,8 +126,9 @@ public class RouteContext {
     private static abstract class UnprivilegedHandler<E extends Record> extends
         RequestLifecycle<E> {
 
-        public UnprivilegedHandler(HttpExchange hx, Class<E> type) {
-            super(hx, type);
+        public UnprivilegedHandler(HttpExchange hx, Class<E> type,
+                                   String allowMethod) {
+            super(hx, type, allowMethod);
         }
 
         @Override
@@ -137,8 +140,8 @@ public class RouteContext {
     private static abstract class PrivilegedHandler<E extends Record>
         extends RequestLifecycle<E> {
 
-        PrivilegedHandler(HttpExchange hx, Class<E> type) {
-            super(hx, type);
+        PrivilegedHandler(HttpExchange hx, Class<E> type, String allowMethod) {
+            super(hx, type, allowMethod);
         }
 
         @Override
@@ -170,7 +173,7 @@ public class RouteContext {
     private static class RegistrationHandler extends
         UnprivilegedHandler<RegisterRequest> {
         public RegistrationHandler(HttpExchange hx) {
-            super(hx, RegisterRequest.class);
+            super(hx, RegisterRequest.class, "POST");
         }
 
         @Override
@@ -207,7 +210,7 @@ public class RouteContext {
     private static class TeamCreateHandler extends
         PrivilegedHandler<TeamCreateRequest> {
         public TeamCreateHandler(HttpExchange hx) {
-            super(hx, TeamCreateRequest.class);
+            super(hx, TeamCreateRequest.class, "POST");
         }
 
         @Override
@@ -235,7 +238,7 @@ public class RouteContext {
     private static class CourseCreateHandler extends
         PrivilegedHandler<CourseCreateRequest> {
         public CourseCreateHandler(HttpExchange hx) {
-            super(hx, CourseCreateRequest.class);
+            super(hx, CourseCreateRequest.class, "POST");
         }
 
         @Override
@@ -263,7 +266,7 @@ public class RouteContext {
 
     private static class LoginHandler extends UnprivilegedHandler<LoginRequest> {
         public LoginHandler(HttpExchange hx) {
-            super(hx, LoginRequest.class);
+            super(hx, LoginRequest.class, "POST");
         }
 
         @Override
@@ -350,7 +353,7 @@ public class RouteContext {
     private static class CoachRegistrationHandler extends
         PrivilegedHandler<RegisterRequest> {
         public CoachRegistrationHandler(HttpExchange hx) {
-            super(hx, RegisterRequest.class);
+            super(hx, RegisterRequest.class, "POST");
         }
 
         @Override
@@ -387,7 +390,7 @@ public class RouteContext {
     private static class GetMembersHandler extends
         PrivilegedHandler<NoBodyRequest> {
         public GetMembersHandler(HttpExchange hx) {
-            super(hx, NoBodyRequest.class);
+            super(hx, NoBodyRequest.class, "GET");
         }
 
         @Override
