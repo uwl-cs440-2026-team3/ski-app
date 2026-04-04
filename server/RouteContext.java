@@ -69,11 +69,23 @@ public class RouteContext {
                 }
 
                 E req;
-                try {
-                    req = JSONMapper.readValue(this.hx.getRequestBody(), this.recordType);
-                } catch (JacksonException je) {
-                    this.badRequest("Invalid JSON");
-                    return;
+                // check if we are doing a get
+                if ("GET".equals(method)) {
+                    try {
+                    	// make it blank
+                        req = this.recordType.getDeclaredConstructor().newInstance();
+                    } catch (Exception e) {
+                        this.sendText(500, e.getMessage());
+                        return;
+                    }
+                // otherwise we need to get the req
+                } else {
+                    try {
+                        req = JSONMapper.readValue(this.hx.getRequestBody(), this.recordType);
+                    } catch (JacksonException je) {
+                        this.badRequest("Invalid JSON");
+                        return;
+                    }
                 }
 
                 if (hasBlankField(req)) {
@@ -384,7 +396,7 @@ public class RouteContext {
         void handleDetail(NoBodyRequest req) throws IOException {
 
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
-                String sql = "SELECT name, role_mask FROM users";
+                String sql = "SELECT email, name, role_mask FROM users";
 
                 // list to hold our gathered members in
                 ArrayList<MemberInfo> members = new ArrayList<>();
@@ -405,7 +417,7 @@ public class RouteContext {
                         members.add(new MemberInfo(rs.getString("email"),
                                                    rs.getString("name"),
                                                    role,
-                                                   ""));
+                                                   "")); 
                     }
                 }
 
