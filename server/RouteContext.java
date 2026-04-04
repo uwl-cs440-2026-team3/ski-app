@@ -72,13 +72,13 @@ public class RouteContext {
                 // check if we are doing a get
                 if ("GET".equals(method)) {
                     try {
-                    	// make it blank
+                        // make it blank
                         req = this.recordType.getDeclaredConstructor().newInstance();
                     } catch (Exception e) {
                         this.sendText(500, e.getMessage());
                         return;
                     }
-                // otherwise we need to get the req
+                    // otherwise we need to get the req
                 } else {
                     try {
                         req = JSONMapper.readValue(this.hx.getRequestBody(), this.recordType);
@@ -417,7 +417,7 @@ public class RouteContext {
                         members.add(new MemberInfo(rs.getString("email"),
                                                    rs.getString("name"),
                                                    role,
-                                                   "")); 
+                                                   ""));
                     }
                 }
 
