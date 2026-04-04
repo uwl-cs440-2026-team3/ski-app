@@ -8,6 +8,8 @@ All request headers and bodies must use ASCII and all response headers and bodie
 
 All endpoints may reply with 4xx or 5xx responses as applicable and conforming with RFC 9110. Only response codes with special meaning for a particular endpoint are specifically listed in the documentation for the individual endpoints which follows.
 
+Some endpoints are labelled as requiring an access role. These endpoints must be authenticated by providing an `Authenticate` header in the request containing a basic-auth bearer token (see the `/login` endpoint).
+
 ### /register
 
 #### Request
@@ -46,7 +48,7 @@ Logs in the user with the specified email if that user exists and the password i
 * 200 OK - if the login was successful
 * 403 Forbidden - if any part of the credentials did not match
 
-If a login succeeds, the response includes the following JSON response:
+If a login succeeds, the response body consists of the following JSON response:
 
 ```json
 {
@@ -80,3 +82,31 @@ Registers a coach with the specified email, name, and password. The email must b
 * 400 Bad Request - Invalid JSON or missing required fields
 
 The registration will fail if the email in the request has already been used to register a user (with any role). The name is not required to be unique.
+
+### /members
+
+#### Request
+
+Requires access level: admin
+
+Requests a list of all current users.
+
+#### Response
+* 200 OK - if the request succeeds
+* 403 Forbidden - if the user requesting is not logged in as an admin
+
+If the request succeeds, the response body consists of the following JSON response:
+
+```json
+[
+  {
+    "email" : email,
+    "name" : name,
+    "role" : role,
+    "team" : team
+  },
+  ...
+]
+```
+
+The response includes all users in the system at the time the request was processed who have the specified role. The email field can be used as a unique identifier (multiple users may have the same name). The users are guaranteed to be sorted by names in ascending, case-insensitive lexicographical order. The role field will be one of "skier", "coach", or "admin". The team field will contain the name of the team the member is assigned to, or the empty string if the member is not assigned to a team.

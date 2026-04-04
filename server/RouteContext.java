@@ -4,6 +4,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.sql.*;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.concurrent.*;
 
@@ -20,6 +21,7 @@ public class RouteContext {
     private record LoginRequest(String email, String password) {};
     private record TeamCreateRequest(String name) {};
     private record CourseCreateRequest(String name) {};
+    private record NoBodyRequest() {};
 
     public static void registerRoutes(HttpsServer server) {
         server.createContext("/register",
@@ -32,26 +34,30 @@ public class RouteContext {
                              (HttpExchange hx) -> new CourseCreateHandler(hx).handle());
         server.createContext("/registercoach",
                              (HttpExchange hx) -> new CoachRegistrationHandler(hx).handle());
+        server.createContext("/getmembers",
+                             (HttpExchange hx) -> new GetMembersHandler(hx).handle());
     }
 
 
     private static abstract class RequestLifecycle<E extends Record> {
         protected HttpExchange hx;
         private Class<E> recordType;
+        private String allowMethod;
 
-        public RequestLifecycle(HttpExchange hx, Class<E> type) {
+        public RequestLifecycle(HttpExchange hx, Class<E> type, String allowMethod) {
             this.hx = hx;
             this.recordType = type;
+            this.allowMethod = allowMethod;
         }
 
         public void handle() throws IOException {
             try {
                 String method = this.hx.getRequestMethod();
 
-                if ("POST".equals(method)) {
+                if (this.allowMethod.equals(method)) {
                     // Continue
                 } else if (RequestLifecycle.isRecognizedHttpMethod(method)) {
-                    this.methodNotAllowed("POST");
+                    this.methodNotAllowed(this.allowMethod);
                     return;
                 } else {
                     this.notImplemented();
@@ -63,11 +69,23 @@ public class RouteContext {
                 }
 
                 E req;
-                try {
-                    req = JSONMapper.readValue(this.hx.getRequestBody(), this.recordType);
-                } catch (JacksonException je) {
-                    this.badRequest("Invalid JSON");
-                    return;
+                // check if we are doing a get
+                if ("GET".equals(method)) {
+                    try {
+                        // make it blank
+                        req = this.recordType.getDeclaredConstructor().newInstance();
+                    } catch (Exception e) {
+                        this.sendText(500, e.getMessage());
+                        return;
+                    }
+                    // otherwise we need to get the req
+                } else {
+                    try {
+                        req = JSONMapper.readValue(this.hx.getRequestBody(), this.recordType);
+                    } catch (JacksonException je) {
+                        this.badRequest("Invalid JSON");
+                        return;
+                    }
                 }
 
                 if (hasBlankField(req)) {
@@ -120,8 +138,9 @@ public class RouteContext {
     private static abstract class UnprivilegedHandler<E extends Record> extends
         RequestLifecycle<E> {
 
-        public UnprivilegedHandler(HttpExchange hx, Class<E> type) {
-            super(hx, type);
+        public UnprivilegedHandler(HttpExchange hx, Class<E> type,
+                                   String allowMethod) {
+            super(hx, type, allowMethod);
         }
 
         @Override
@@ -133,8 +152,8 @@ public class RouteContext {
     private static abstract class PrivilegedHandler<E extends Record>
         extends RequestLifecycle<E> {
 
-        PrivilegedHandler(HttpExchange hx, Class<E> type) {
-            super(hx, type);
+        PrivilegedHandler(HttpExchange hx, Class<E> type, String allowMethod) {
+            super(hx, type, allowMethod);
         }
 
         @Override
@@ -166,7 +185,7 @@ public class RouteContext {
     private static class RegistrationHandler extends
         UnprivilegedHandler<RegisterRequest> {
         public RegistrationHandler(HttpExchange hx) {
-            super(hx, RegisterRequest.class);
+            super(hx, RegisterRequest.class, "POST");
         }
 
         @Override
@@ -203,7 +222,7 @@ public class RouteContext {
     private static class TeamCreateHandler extends
         PrivilegedHandler<TeamCreateRequest> {
         public TeamCreateHandler(HttpExchange hx) {
-            super(hx, TeamCreateRequest.class);
+            super(hx, TeamCreateRequest.class, "POST");
         }
 
         @Override
@@ -231,7 +250,7 @@ public class RouteContext {
     private static class CourseCreateHandler extends
         PrivilegedHandler<CourseCreateRequest> {
         public CourseCreateHandler(HttpExchange hx) {
-            super(hx, CourseCreateRequest.class);
+            super(hx, CourseCreateRequest.class, "POST");
         }
 
         @Override
@@ -259,7 +278,7 @@ public class RouteContext {
 
     private static class LoginHandler extends UnprivilegedHandler<LoginRequest> {
         public LoginHandler(HttpExchange hx) {
-            super(hx, LoginRequest.class);
+            super(hx, LoginRequest.class, "POST");
         }
 
         @Override
@@ -297,23 +316,10 @@ public class RouteContext {
                 // constrained to be unique.
                 if (result.getString("pwhash").equals(AuthUtil.hashPassword(
                         login.password))) {
-                    return this.getRole(result.getInt("role_mask"));
+                    return getRoleName(result.getInt("role_mask"));
                 } else {
                     return "noauth";
                 }
-            }
-        }
-
-        private String getRole(int roleMask) {
-            switch(roleMask) {
-            case 2:
-                return "coach";
-            case 1:
-                return "admin";
-            case 0:
-                return "skier";
-            default:
-                return "noauth";
             }
         }
 
@@ -346,7 +352,7 @@ public class RouteContext {
     private static class CoachRegistrationHandler extends
         PrivilegedHandler<RegisterRequest> {
         public CoachRegistrationHandler(HttpExchange hx) {
-            super(hx, RegisterRequest.class);
+            super(hx, RegisterRequest.class, "POST");
         }
 
         @Override
@@ -377,6 +383,66 @@ public class RouteContext {
             }
 
             this.sendText(201, "registered coach");
+        }
+    }
+
+    private static class GetMembersHandler extends
+        PrivilegedHandler<NoBodyRequest> {
+        public GetMembersHandler(HttpExchange hx) {
+            super(hx, NoBodyRequest.class, "GET");
+        }
+
+        @Override
+        void handleDetail(NoBodyRequest req) throws IOException {
+
+            try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
+                String sql = "SELECT email, name, role_mask FROM users";
+
+                // list to hold our gathered members in
+                ArrayList<MemberInfo> members = new ArrayList<>();
+
+                // execute our statement
+                try (PreparedStatement ps = conn.prepareStatement(sql);
+                            ResultSet rs = ps.executeQuery()) {
+
+                    // for each result
+                    while (rs.next()) {
+
+                        String role = getRoleName(rs.getInt("role_mask"));
+                        // This endpoint is authenticated - the role mask
+                        // must be valid or something is corrupt.
+                        assert(!role.equals("noauth"));
+
+                        // add them to the list
+                        members.add(new MemberInfo(rs.getString("email"),
+                                                   rs.getString("name"),
+                                                   role,
+                                                   ""));
+                    }
+                }
+
+                // jsonify it and send it
+                String response = RouteContext.JSONMapper.writeValueAsString(members);
+                this.sendText(200, response);
+            } catch (SQLException se) {
+                this.sendText(500, se.getMessage());
+            }
+        }
+
+        private record MemberInfo(String email, String name, String role,
+                                  String team) {}
+    }
+
+    private static String getRoleName(int roleMask) {
+        switch(roleMask) {
+        case 2:
+            return "coach";
+        case 1:
+            return "admin";
+        case 0:
+            return "skier";
+        default:
+            return "noauth";
         }
     }
 
