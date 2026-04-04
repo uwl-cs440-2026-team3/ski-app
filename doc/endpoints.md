@@ -87,29 +87,26 @@ The registration will fail if the email in the request has already been used to 
 
 #### Request
 
-```json
-{
-  "role" : role
-}
-```
-
 Requires access level: admin
 
-Requests a list of all current users with the specified role. The role field must be one of "skier", "coach", or "admin", or the request is malformed.
+Requests a list of all current users.
 
 #### Response
 * 200 OK - if the request succeeds
 * 403 Forbidden - if the user requesting is not logged in as an admin
-* 400 Bad Request - if the JSON is invalid or the role type is unrecognized
 
 If the request succeeds, the response body consists of the following JSON response:
 
 ```json
 [
-  "name 1",
-  "name 2",
+  {
+    "email" : email,
+    "name" : name,
+    "role" : role,
+    "team" : team
+  },
   ...
 ]
 ```
 
-The response includes the usernames of all users in the system at the time the request was processed who have the specified role. The names are guaranteed to be in ascending, case-insensitive lexicographical order.
+The response includes all users in the system at the time the request was processed who have the specified role. The email field can be used as a unique identifier (multiple users may have the same name). The users are guaranteed to be sorted by names in ascending, case-insensitive lexicographical order. The role field will be one of "skier", "coach", or "admin". The team field will contain the name of the team the member is assigned to, or the empty string if the member is not assigned to a team.
