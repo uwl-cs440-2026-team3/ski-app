@@ -36,6 +36,10 @@ public class RouteContext {
                              (HttpExchange hx) -> new CoachRegistrationHandler(hx).handle());
         server.createContext("/getmembers",
                              (HttpExchange hx) -> new GetMembersHandler(hx).handle());
+        server.createContext("/getteams",
+                			 (HttpExchange hx) -> new GetTeamsHandler(hx).handle());
+        server.createContext("/getcourses",
+   			 (HttpExchange hx) -> new GetCoursesHandler(hx).handle());
     }
 
 
@@ -432,6 +436,82 @@ public class RouteContext {
         private record MemberInfo(String email, String name, String role,
                                   String team) {}
     }
+    
+   
+    private static class GetTeamsHandler extends
+    	PrivilegedHandler<NoBodyRequest> {
+    	public GetTeamsHandler(HttpExchange hx) {
+    		super(hx, NoBodyRequest.class, "GET");
+    	}
+
+    	@Override
+    	void handleDetail(NoBodyRequest req) throws IOException {
+
+    		try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
+    			String sql = "SELECT name FROM teams";
+
+    			// list to hold our gathered teams in
+    			ArrayList<TeamInfo> teams = new ArrayList<>();
+
+    			// execute our statement
+    			try (PreparedStatement ps = conn.prepareStatement(sql);
+                        ResultSet rs = ps.executeQuery()) {
+
+    				// for each result
+    				while (rs.next()) {
+    					// add them to the list
+    					teams.add(new TeamInfo(rs.getString("name")));
+    				}
+    			}
+
+    			// jsonify it and send it
+    			String response = RouteContext.JSONMapper.writeValueAsString(teams);
+    			this.sendText(200, response);
+    		} catch (SQLException se) {
+    			this.sendText(500, se.getMessage());
+    		}
+    	}
+
+    	private record TeamInfo(String name) {}
+    }    
+
+    
+    private static class GetCoursesHandler extends
+    	PrivilegedHandler<NoBodyRequest> {
+    	public GetCoursesHandler(HttpExchange hx) {
+    		super(hx, NoBodyRequest.class, "GET");
+    	}
+
+    	@Override
+    	void handleDetail(NoBodyRequest req) throws IOException {
+
+    		try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
+    			String sql = "SELECT name FROM courses";
+
+    			// list to hold our gathered Courses in
+    			ArrayList<CourseInfo> courses = new ArrayList<>();
+
+    			// execute our statement
+    			try (PreparedStatement ps = conn.prepareStatement(sql);
+                        ResultSet rs = ps.executeQuery()) {
+
+    				// for each result
+    				while (rs.next()) {
+    					// add them to the list
+    					courses.add(new CourseInfo(rs.getString("name")));
+    				}
+    			}
+
+    			// jsonify it and send it
+    			String response = RouteContext.JSONMapper.writeValueAsString(courses);
+    			this.sendText(200, response);
+    		} catch (SQLException se) {
+    			this.sendText(500, se.getMessage());
+    		}
+    	}
+
+    	private record CourseInfo(String name) {}
+    }    
 
     private static String getRoleName(int roleMask) {
         switch(roleMask) {
