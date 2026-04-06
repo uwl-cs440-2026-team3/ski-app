@@ -9,4 +9,17 @@ public class AuthUtil {
         byte[] hash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
         return Base64.getEncoder().encodeToString(hash);
     }
+
+    public static String getRoleName(int roleMask) {
+        switch(roleMask) {
+        case 2:
+            return "coach";
+        case 1:
+            return "admin";
+        case 0:
+            return "skier";
+        default:
+            return "noauth";
+        }
+    }
 }

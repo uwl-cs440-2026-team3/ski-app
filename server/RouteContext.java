@@ -217,7 +217,7 @@ public class RouteContext {
                 // constrained to be unique.
                 if (result.getString("pwhash").equals(AuthUtil.hashPassword(
                         login.password))) {
-                    return getRoleName(result.getInt("role_mask"));
+                    return AuthUtil.getRoleName(result.getInt("role_mask"));
                 } else {
                     return "noauth";
                 }
@@ -309,7 +309,7 @@ public class RouteContext {
                     // for each result
                     while (rs.next()) {
 
-                        String role = getRoleName(rs.getInt("role_mask"));
+                        String role = AuthUtil.getRoleName(rs.getInt("role_mask"));
                         // This endpoint is authenticated - the role mask
                         // must be valid or something is corrupt.
                         assert(!role.equals("noauth"));
@@ -332,18 +332,5 @@ public class RouteContext {
 
         private record MemberInfo(String email, String name, String role,
                                   String team) {}
-    }
-
-    private static String getRoleName(int roleMask) {
-        switch(roleMask) {
-        case 2:
-            return "coach";
-        case 1:
-            return "admin";
-        case 0:
-            return "skier";
-        default:
-            return "noauth";
-        }
     }
 }
