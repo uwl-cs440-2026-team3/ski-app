@@ -10,9 +10,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class RouteContext {
     private final static ObjectMapper JSONMapper = new ObjectMapper();
 
-    private record TeamCreateRequest(String name) {};
-    private record CourseCreateRequest(String name) {};
-    record NoBodyRequest() {};
+    public record TeamCreateRequest(String name) {};
+    public record CourseCreateRequest(String name) {};
+    public record NoBodyRequest() {};
 
     public static void registerRoutes(HttpsServer server) {
         server.createContext("/register",
