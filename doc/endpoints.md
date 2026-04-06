@@ -83,7 +83,7 @@ Registers a coach with the specified email, name, and password. The email must b
 
 The registration will fail if the email in the request has already been used to register a user (with any role). The name is not required to be unique.
 
-### /members
+### /getmembers
 
 #### Request
 
