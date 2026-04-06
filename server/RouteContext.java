@@ -3,6 +3,7 @@ import java.io.*;
 import java.security.*;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.core.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,6 +13,8 @@ public class RouteContext {
 
     public record TeamCreateRequest(String name) {};
     public record CourseCreateRequest(String name) {};
+    public record ScheduleRequest(String team_a, String team_b, String course,
+                                  String start, String duration) {};
     public record NoBodyRequest() {};
 
     public static void registerRoutes(HttpsServer server) {
@@ -30,6 +33,9 @@ public class RouteContext {
         server.createContext("/course",
                              (HttpExchange hx) ->
                              new CourseCreateHandler(hx).handle());
+        server.createContext("/schedule",
+                             (HttpExchange hx) ->
+                             new ScheduleRaceHandler(hx).handle());
         server.createContext("/getmembers",
                              (HttpExchange hx) ->
                              new GetMembersHandler(hx).handle());
@@ -89,6 +95,31 @@ public class RouteContext {
             }
 
             this.sendText(201, "Course created");
+        }
+    }
+
+    private static class ScheduleRaceHandler extends
+        AuthFlow.PrivilegedHandler<ScheduleRequest> {
+
+        Pattern dateRegEx;
+        Pattern minutesRegEx;
+
+        public ScheduleRaceHandler(HttpExchange hx) {
+            super(hx, ScheduleRequest.class, "POST");
+            this.dateRegEx = Pattern.compile("^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d$");
+            this.minutesRegEx = Pattern.compile("^\\d+$");
+        }
+
+        @Override
+        public void handleDetail(ScheduleRequest req) throws IOException {
+            if (!this.dateRegEx.matcher(req.start).matches()) {
+                this.sendText(400, "invalid start datetime format");
+                return;
+            }
+            if (!this.minutesRegEx.matcher(req.duration).matches()) {
+                this.sendText(400, "invalid duration");
+                return;
+            }
         }
     }
 
