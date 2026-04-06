@@ -79,6 +79,13 @@ public class Main {
             courseid INTEGER PRIMARY KEY ASC AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE);
 
+        CREATE TABLE IF NOT EXISTS races (
+            team_id_a INTEGER REFERENCES teams (teamid),
+            team_id_b INTEGER REFERENCES teams (teamid),
+            course_id INTEGER REFERENCES courses (courseid),
+            starttime STRING,
+            endtime   STRING);
+
         """;
 
         String sqlRegisterAdmin = """
