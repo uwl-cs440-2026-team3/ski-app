@@ -55,6 +55,9 @@ public class RouteContext {
         server.createContext("/getteams",
                              (HttpExchange hx) ->
                              new GetTeamsHandler(hx).handle());
+        server.createContext("/getcourses",
+                             (HttpExchange hx) ->
+                             new GetCoursesHandler(hx).handle());
         server.createContext("/getraces",
                              (HttpExchange hx) ->
                              new GetRacesHandler(hx).handle());
@@ -399,6 +402,7 @@ public class RouteContext {
 
     private static class GetTeamsHandler extends
         AuthFlow.PrivilegedHandler<NoBodyRequest> {
+
         public GetTeamsHandler(HttpExchange hx) {
             super(hx, NoBodyRequest.class, "GET");
         }
@@ -430,6 +434,43 @@ public class RouteContext {
                 this.sendText(500, se.getMessage());
             }
         }
+    }
+
+    private static class GetCoursesHandler extends
+        AuthFlow.PrivilegedHandler<NoBodyRequest>     {
+        public GetCoursesHandler(HttpExchange hx) {
+            super(hx, NoBodyRequest.class, "GET");
+        }
+
+        @Override
+        void handleDetail(NoBodyRequest req) throws IOException {
+
+            try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
+                String sql = "SELECT name FROM courses";
+
+                // list to hold our gathered Courses in
+                ArrayList<CourseInfo> courses = new ArrayList<>();
+
+                // execute our statement
+                try (PreparedStatement ps = conn.prepareStatement(sql);
+                            ResultSet rs = ps.executeQuery()) {
+
+                    // for each result
+                    while (rs.next()) {
+                        // add them to the list
+                        courses.add(new CourseInfo(rs.getString("name")));
+                    }
+                }
+
+                // jsonify it and send it
+                String response = RouteContext.JSONMapper.writeValueAsString(courses);
+                this.sendText(200, response);
+            } catch (SQLException se) {
+                this.sendText(500, se.getMessage());
+            }
+        }
+
+        private record CourseInfo(String name) {}
     }
 
     private static class GetRacesHandler extends
