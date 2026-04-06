@@ -9,7 +9,8 @@ Text TODO.
 ## Roadmap
 
 - SERVER (endpoint names largely as placeholder, can be changed, note if they get changed)
-* [ ] Endpoint for retrieving users. /getmember
+* [x] Endpoint for retrieving users. /getmember
+* [ ] Team field for getmember endpoint
 * [ ] Endpoint for retrieving teams. /getteam
 * [ ] Endpoint for retrieving courses. /getcourse
 * [ ] Endpoint for scheduling races. /schedulerace
