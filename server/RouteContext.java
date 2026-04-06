@@ -12,7 +12,7 @@ public class RouteContext {
 
     private record TeamCreateRequest(String name) {};
     private record CourseCreateRequest(String name) {};
-    private record NoBodyRequest() {};
+    record NoBodyRequest() {};
 
     public static void registerRoutes(HttpsServer server) {
         server.createContext("/register",
