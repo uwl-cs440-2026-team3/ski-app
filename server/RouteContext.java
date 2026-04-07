@@ -113,8 +113,8 @@ public class RouteContext {
         @Override
         public void handleDetail(ScheduleRequest req) throws IOException {
             if (req.team_a.equals(req.team_b)) {
-              this.sendText(400, "cannot race team against itself");
-              return;
+                this.sendText(400, "cannot race team against itself");
+                return;
             }
             if (!this.dateRegEx.matcher(req.start).matches()) {
                 this.sendText(400, "invalid start datetime format");
@@ -127,44 +127,43 @@ public class RouteContext {
 
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
                 String sql = """
-                  INSERT INTO races VALUES (
-                      (SELECT teamid
-                         FROM teams
-                        WHERE name = ?
-                          AND NOT EXISTS (
-                            SELECT 1
-                              FROM races
-                             WHERE (team_id_a = teamid OR team_id_b = teamid)
-                               AND endtime > datetime(?, "-30 minutes")
-                               AND starttime < datetime(?, ? || " minutes", "30 minutes")
-                          )
-                      ),
-                      (SELECT teamid
-                         FROM teams
-                        WHERE name = ?
-                          AND NOT EXISTS (
-                            SELECT 1
-                              FROM races
-                             WHERE (team_id_a = teamid OR team_id_b = teamid)
-                               AND endtime > datetime(?, "-30 minutes")
-                               AND starttime < datetime(?, ? || " minutes", "30 minutes")
-                          )
-                      ),
-                      (SELECT courseid
-                         FROM courses
-                        WHERE name = ?
-                          AND NOT EXISTS (
-                            SELECT 1
-                              FROM races
-                             WHERE (course_id = courseid)
-                               AND endtime > datetime(?, "-30 minutes")
-                               AND starttime < datetime(?, ? || " minutes", "30 minutes")
-                          )
-                      ),
-                      datetime(?),
-                      datetime(?, ? || " minutes"));
-
-                  """;
+                             INSERT INTO races VALUES (
+                                 (SELECT teamid
+                                  FROM teams
+                                  WHERE name = ?
+                                               AND NOT EXISTS (
+                                                   SELECT 1
+                                                   FROM races
+                WHERE (team_id_a = teamid OR team_id_b = teamid)
+                                                   AND endtime > datetime(?, "-30 minutes")
+                                                   AND starttime < datetime(?, ? || " minutes", "30 minutes")
+                                               )
+                                 ),
+                                 (SELECT teamid
+                                  FROM teams
+                                  WHERE name = ?
+                                               AND NOT EXISTS (
+                                                   SELECT 1
+                                                   FROM races
+                WHERE (team_id_a = teamid OR team_id_b = teamid)
+                                                   AND endtime > datetime(?, "-30 minutes")
+                                                   AND starttime < datetime(?, ? || " minutes", "30 minutes")
+                                               )
+                                 ),
+                                 (SELECT courseid
+                                  FROM courses
+                                  WHERE name = ?
+                                               AND NOT EXISTS (
+                                                   SELECT 1
+                                                   FROM races
+                                                   WHERE (course_id = courseid)
+                                                   AND endtime > datetime(?, "-30 minutes")
+                                                   AND starttime < datetime(?, ? || " minutes", "30 minutes")
+                                               )
+                                 ),
+                                 datetime(?),
+                                 datetime(?, ? || " minutes"));
+                """;
 
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, req.team_a);
