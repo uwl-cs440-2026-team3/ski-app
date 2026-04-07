@@ -161,7 +161,7 @@ public class RouteContext {
                                                    AND starttime < datetime(?, ? || " minutes", "30 minutes")
                                                )
                                  ),
-                                 datetime(?),
+                                 datetime(?) WHERE datetime(?) >= datetime("now"),
                                  datetime(?, ? || " minutes"));
                 """;
 
@@ -181,7 +181,8 @@ public class RouteContext {
                     ps.setString(12, req.duration);
                     ps.setString(13, req.start);
                     ps.setString(14, req.start);
-                    ps.setString(15, req.duration);
+                    ps.setString(15, req.start);
+                    ps.setString(16, req.duration);
                     ps.executeUpdate();
                 }
             } catch (SQLException se) {
