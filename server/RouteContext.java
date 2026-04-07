@@ -13,8 +13,12 @@ public class RouteContext {
 
     public record TeamCreateRequest(String name) {};
     public record CourseCreateRequest(String name) {};
-    public record ScheduleRequest(String team_a, String team_b, String course,
-                                  String start, String duration) {};
+    public record ScheduleRequest(String name,
+                                  String team_a,
+                                  String team_b,
+                                  String course,
+                                  String start,
+                                  String duration) {};
     public record NoBodyRequest() {};
 
     public static void registerRoutes(HttpsServer server) {
@@ -128,6 +132,7 @@ public class RouteContext {
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
                 String sql = """
                              INSERT INTO races VALUES (
+                                 ?,
                                  (SELECT teamid
                                   FROM teams
                                   WHERE name = ?
@@ -166,22 +171,23 @@ public class RouteContext {
                 """;
 
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                    ps.setString(1, req.team_a);
-                    ps.setString(2, req.start);
+                    ps.setString(1, req.name);
+                    ps.setString(2, req.team_a);
                     ps.setString(3, req.start);
-                    ps.setString(4, req.duration);
+                    ps.setString(4, req.start);
+                    ps.setString(5, req.duration);
 
-                    ps.setString(5, req.team_b);
-                    ps.setString(6, req.start);
+                    ps.setString(6, req.team_b);
                     ps.setString(7, req.start);
-                    ps.setString(8, req.duration);
-                    ps.setString(9, req.course);
-                    ps.setString(10, req.start);
+                    ps.setString(8, req.start);
+                    ps.setString(9, req.duration);
+                    ps.setString(10, req.course);
                     ps.setString(11, req.start);
-                    ps.setString(12, req.duration);
-                    ps.setString(13, req.start);
+                    ps.setString(12, req.start);
+                    ps.setString(13, req.duration);
                     ps.setString(14, req.start);
-                    ps.setString(15, req.duration);
+                    ps.setString(15, req.start);
+                    ps.setString(16, req.duration);
                     ps.executeUpdate();
                 }
             } catch (SQLException se) {

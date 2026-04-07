@@ -91,6 +91,7 @@ Requires access level: admin
 
 ```json
 {
+  "name" : name,
   "team_a" : team_name,
   "team_b" : team_name,
   "course" : course_name,
