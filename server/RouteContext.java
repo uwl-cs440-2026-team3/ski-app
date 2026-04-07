@@ -112,6 +112,10 @@ public class RouteContext {
 
         @Override
         public void handleDetail(ScheduleRequest req) throws IOException {
+            if (req.team_a.equals(req.team_b)) {
+              this.sendText(400, "cannot race team against itself");
+              return;
+            }
             if (!this.dateRegEx.matcher(req.start).matches()) {
                 this.sendText(400, "invalid start datetime format");
                 return;
@@ -120,6 +124,78 @@ public class RouteContext {
                 this.sendText(400, "invalid duration");
                 return;
             }
+
+            try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
+                String sql = """
+                  INSERT INTO races VALUES (
+                      (SELECT teamid
+                         FROM teams
+                        WHERE name = ?
+                          AND NOT EXISTS (
+                            SELECT 1
+                              FROM races
+                             WHERE (team_id_a = teamid OR team_id_b = teamid)
+                               AND endtime > datetime(?, "-30 minutes")
+                               AND starttime < datetime(?, ? || " minutes", "30 minutes")
+                          )
+                      ),
+                      (SELECT teamid
+                         FROM teams
+                        WHERE name = ?
+                          AND NOT EXISTS (
+                            SELECT 1
+                              FROM races
+                             WHERE (team_id_a = teamid OR team_id_b = teamid)
+                               AND endtime > datetime(?, "-30 minutes")
+                               AND starttime < datetime(?, ? || " minutes", "30 minutes")
+                          )
+                      ),
+                      (SELECT courseid
+                         FROM courses
+                        WHERE name = ?
+                          AND NOT EXISTS (
+                            SELECT 1
+                              FROM races
+                             WHERE (course_id = courseid)
+                               AND endtime > datetime(?, "-30 minutes")
+                               AND starttime < datetime(?, ? || " minutes", "30 minutes")
+                          )
+                      ),
+                      datetime(?),
+                      datetime(?, ? || " minutes"));
+
+                  """;
+
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setString(1, req.team_a);
+                    ps.setString(2, req.start);
+                    ps.setString(3, req.start);
+                    ps.setString(4, req.duration);
+
+                    ps.setString(5, req.team_b);
+                    ps.setString(6, req.start);
+                    ps.setString(7, req.start);
+                    ps.setString(8, req.duration);
+                    ps.setString(9, req.course);
+                    ps.setString(10, req.start);
+                    ps.setString(11, req.start);
+                    ps.setString(12, req.duration);
+                    ps.setString(13, req.start);
+                    ps.setString(14, req.start);
+                    ps.setString(15, req.duration);
+                    ps.executeUpdate();
+                }
+            } catch (SQLException se) {
+                if (se.getMessage().contains("NOT NULL")) {
+                    this.conflict("race conflicts");
+                } else {
+                    this.sendText(500, se.getMessage());
+                }
+
+                return;
+            }
+
+            this.sendText(201, "Created");
         }
     }
 

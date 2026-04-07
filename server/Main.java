@@ -80,11 +80,11 @@ public class Main {
             name TEXT NOT NULL UNIQUE);
 
         CREATE TABLE IF NOT EXISTS races (
-            team_id_a INTEGER REFERENCES teams (teamid),
-            team_id_b INTEGER REFERENCES teams (teamid),
-            course_id INTEGER REFERENCES courses (courseid),
-            starttime STRING,
-            endtime   STRING);
+            team_id_a INTEGER NOT NULL REFERENCES teams (teamid),
+            team_id_b INTEGER NOT NULL REFERENCES teams (teamid),
+            course_id INTEGER NOT NULL REFERENCES courses (courseid),
+            starttime STRING NOT NULL,
+            endtime   STRING NOT NULL);
 
         """;
 
