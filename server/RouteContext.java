@@ -383,6 +383,7 @@ public class RouteContext {
                              JOIN teams ta ON r.team_id_a = ta.teamid
                 JOIN teams tb ON r.team_id_b = tb.teamid
                 JOIN courses c ON r.course_id = c.courseid
+                WHERE datetime(r.starttime) >= datetime('now')
                                                 ORDER BY datetime(r.starttime)
                                                 """;
 
