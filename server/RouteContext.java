@@ -45,6 +45,9 @@ public class RouteContext {
         server.createContext("/getmembers",
                              (HttpExchange hx) ->
                              new GetMembersHandler(hx).handle());
+		server.createContext("/getraces",
+							 (HttpExchange hx) -> 
+							 new GetRacesHandler(hx).handle());
     }
 
     private static class TeamCreateHandler extends
@@ -353,4 +356,42 @@ public class RouteContext {
         private record MemberInfo(String email, String name, String role,
                                   String team) {}
     }
+	private static class GetRacesHandler extends
+	AuthFlow.PrivilegedHandler<NoBodyRequest> {
+		public GetRacesHandler(HttpExchange hx) {
+			super(hx, NoBodyRequest.class, "GET");
+		}
+	
+		@Override
+		void handleDetail(NoBodyRequest req) throws IOException {
+	
+			try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
+				String sql = """
+					    SELECT r.name,
+					           ta.name AS team_a_name,
+					           tb.name AS team_b_name
+					    FROM races r
+					    JOIN teams ta ON r.team_id_a = ta.teamid
+					    JOIN teams tb ON r.team_id_b = tb.teamid
+					""";
+	
+				ArrayList<RaceInfo> races = new ArrayList<>();
+	
+				try (PreparedStatement ps = conn.prepareStatement(sql);
+						ResultSet rs = ps.executeQuery()) {
+	
+					while (rs.next()) {
+						races.add(new RaceInfo(rs.getString("name"), rs.getString("team_a_name"), rs.getString("team_b_name") ));
+					}
+				}
+	
+				String response = RouteContext.JSONMapper.writeValueAsString(races);
+				this.sendText(200, response);
+			} catch (SQLException se) {
+				this.sendText(500, se.getMessage());
+			}
+		}
+	
+		private record RaceInfo(String name, String teamA, String teamB) {}
+	}
 }
