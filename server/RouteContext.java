@@ -215,7 +215,7 @@ public class RouteContext {
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
 
                 try (PreparedStatement ps =
-                                conn.prepareStatement("SELECT 1 FROM teams WHERE teamid = ?")) {
+                                conn.prepareStatement("SELECT 1 FROM teams WHERE name = ?")) {
                     ps.setString(1, req.team_a);
                     ResultSet rs = ps.executeQuery();
 
