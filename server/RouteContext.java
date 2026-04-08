@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class RouteContext {
     private final static ObjectMapper JSONMapper = new ObjectMapper();
 
-    public record TeamCreateRequest(String name) {};
+    public record TeamCreateRequest(String name, String skier1, String skier2, String coach) {};
     public record CourseCreateRequest(String name) {};
     public record NoBodyRequest() {};
 
@@ -41,13 +41,35 @@ public class RouteContext {
             super(hx, TeamCreateRequest.class, "POST");
         }
 
+        private int getUserIdByEmail(Connection conn, String email) throws SQLException {
+            String sql = "SELECT userid FROM users WHERE email = ?";
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, email);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) return rs.getInt("userid");
+                }
+            }
+            return -1;
+        }
+
         @Override
         void handleDetail(TeamCreateRequest req) throws IOException {
-            // DB insert
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
-                String sql = "INSERT INTO teams (name) VALUES (?)";
+                int skier1Id = getUserIdByEmail(conn, req.skier1());
+                int skier2Id = getUserIdByEmail(conn, req.skier2());
+                int coachId = getUserIdByEmail(conn, req.coach());
+
+                if (skier1Id == -1 || skier2Id == -1 || coachId == -1) {
+                    this.sendText(400, "One or more users (skiers or coach) do not exist.");
+                    return;
+                }
+
+                String sql = "INSERT INTO teams (name, skier1_id, skier2_id, coach_id) VALUES (?, ?, ?, ?)";
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                    ps.setString(1, req.name);
+                    ps.setString(1, req.name());
+                    ps.setInt(2, skier1Id);
+                    ps.setInt(3, skier2Id);
+                    ps.setInt(4, coachId);
                     ps.executeUpdate();
                 }
             } catch (SQLException se) {
@@ -102,28 +124,25 @@ public class RouteContext {
         void handleDetail(NoBodyRequest req) throws IOException {
 
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
-                String sql = "SELECT email, name, role_mask FROM users";
+                String sql = """
+                             SELECT u.email, u.name, u.role_mask, COALESCE(t.name, '') as team_name 
+                             FROM users u
+                             LEFT JOIN teams t ON u.userid IN (t.skier1_id, t.skier2_id, t.coach_id)
+                             """;
 
-                // list to hold our gathered members in
                 ArrayList<MemberInfo> members = new ArrayList<>();
 
-                // execute our statement
                 try (PreparedStatement ps = conn.prepareStatement(sql);
                             ResultSet rs = ps.executeQuery()) {
 
-                    // for each result
                     while (rs.next()) {
-
                         String role = AuthUtil.getRoleName(rs.getInt("role_mask"));
-                        // This endpoint is authenticated - the role mask
-                        // must be valid or something is corrupt.
                         assert(!role.equals("noauth"));
 
-                        // add them to the list
                         members.add(new MemberInfo(rs.getString("email"),
                                                    rs.getString("name"),
                                                    role,
-                                                   ""));
+                                                   rs.getString("team_name")));
                     }
                 }
 
