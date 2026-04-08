@@ -203,16 +203,107 @@ public class RouteContext {
                     ps.executeUpdate();
                 }
             } catch (SQLException se) {
-                if (se.getMessage().contains("NOT NULL")) {
-                    this.conflict("race conflicts");
-                } else {
-                    this.sendText(500, se.getMessage());
-                }
-
-                return;
+                diagnose(req, se);
             }
 
             this.sendText(201, "Created");
+        }
+
+        private void diagnose(ScheduleRequest req,
+                              SQLException originalException) throws IOException {
+
+            try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
+
+                try (PreparedStatement ps =
+                                conn.prepareStatement("SELECT 1 FROM teams WHERE teamid = ?")) {
+                    ps.setString(1, req.team_a);
+                    ResultSet rs = ps.executeQuery();
+
+                    if (!rs.next()) {
+                        this.sendText(400, "team_a not found");
+                        return;
+                    }
+                }
+
+                try (PreparedStatement ps =
+                                conn.prepareStatement("SELECT 1 FROM teams WHERE name = ?")) {
+                    ps.setString(1, req.team_b);
+                    ResultSet rs = ps.executeQuery();
+
+                    if (!rs.next()) {
+                        this.sendText(400, "team_b not found");
+                        return;
+                    }
+                }
+
+                try (PreparedStatement ps =
+                                conn.prepareStatement("SELECT 1 FROM courses WHERE name = ?")) {
+                    ps.setString(1, req.course);
+                    ResultSet rs = ps.executeQuery();
+
+                    if (!rs.next()) {
+                        this.sendText(400, "course not found");
+                        return;
+                    }
+                }
+
+
+                try (PreparedStatement ps =
+                                conn.prepareStatement("SELECT teamid FROM teams WHERE name = ? AND NOT EXISTS ( SELECT 1 FROM races WHERE (course_id = courseid) AND endtime > datetime(?, '-30 minutes') AND starttime < datetime(?, ? || ' minutes', '30 minutes'))")) {
+                    ;
+
+                    ps.setString(1, req.team_a);
+                    ps.setString(2, req.start);
+                    ps.setString(3, req.start);
+                    ps.setString(4, req.duration);
+                    ResultSet rs = ps.executeQuery();
+
+                    if (!rs.next()) {
+                        this.sendText(409, "team_a conflicts");
+                        return;
+                    }
+                }
+
+                try (PreparedStatement ps =
+                                conn.prepareStatement("SELECT teamid FROM teams WHERE name = ? AND NOT EXISTS ( SELECT 1 FROM races WHERE (course_id = courseid) AND endtime > datetime(?, '-30 minutes') AND starttime < datetime(?, ? || ' minutes', '30 minutes'))")) {
+                    ;
+
+                    ps.setString(1, req.team_b);
+                    ps.setString(2, req.start);
+                    ps.setString(3, req.start);
+                    ps.setString(4, req.duration);
+                    ResultSet rs = ps.executeQuery();
+
+                    if (!rs.next()) {
+                        this.sendText(409, "team_b conflicts");
+                        return;
+                    }
+                }
+
+                try (PreparedStatement ps =
+                                conn.prepareStatement("SELECT courseid FROM courses WHERE name = ? AND NOT EXISTS ( SELECT 1 FROM races WHERE (course_id = courseid) AND endtime > datetime(?, '-30 minutes') AND starttime < datetime(?, ? || ' minutes', '30 minutes'))")) {
+                    ;
+
+                    ps.setString(1, req.course);
+                    ps.setString(2, req.start);
+                    ps.setString(3, req.start);
+                    ps.setString(4, req.duration);
+                    ResultSet rs = ps.executeQuery();
+
+                    if (!rs.next()) {
+                        this.sendText(409, "course conflicts");
+                        return;
+                    }
+                }
+
+                this.sendText(503, originalException.getMessage());
+            } catch (SQLException se) {
+                this.sendText(500, se.getMessage() +
+                              "while processing: " +
+                              originalException.getMessage());
+            }
+
+            return;
         }
     }
 
