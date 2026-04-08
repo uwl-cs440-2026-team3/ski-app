@@ -91,7 +91,7 @@ Requires access level: admin
 
 ```json
 {
-  "name" : name,
+  "name" : race_name,
   "team_a" : team_name,
   "team_b" : team_name,
   "course" : course_name,
@@ -141,3 +141,34 @@ If the request succeeds, the response body consists of the following JSON respon
 ```
 
 The response includes all users in the system at the time the request was processed who have the specified role. The email field can be used as a unique identifier (multiple users may have the same name). The users are guaranteed to be sorted by names in ascending, case-insensitive lexicographical order. The role field will be one of "skier", "coach", or "admin". The team field will contain the name of the team the member is assigned to, or the empty string if the member is not assigned to a team.
+
+### /getraces
+
+#### Request
+
+Requires access level: admin
+
+Requests a list of all future races.
+
+#### Response
+* 200 OK - if the request succeeds
+* 400 Bad Request - if the request JSON is malformed
+* 403 Forbidden - if the user requesting is not logged in as an admin
+
+If the request succeeds, the response body consists of the following JSON response:
+
+```json
+[
+  {
+    "name" : race_name,
+    "team_a" : team_name,
+    "team_b" : team_name,
+    "course" : course_name,
+    "start" : datetime,
+    "end" : datetime
+  },
+  ...
+]
+```
+
+The response includes all races in the system at the time the request was processed which are scheduled in the future. The start and end fields will be in an unspecified date format suitable for displaying.
