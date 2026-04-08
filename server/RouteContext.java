@@ -21,6 +21,12 @@ public class RouteContext {
                                   String course,
                                   String start,
                                   String duration) {};
+    public record RaceInfo(String name,
+                           String teamA,
+                           String teamB,
+                           String course,
+                           String start,
+                           String end) {};
     public record NoBodyRequest() {};
 
     public static void registerRoutes(HttpsServer server) {
@@ -369,11 +375,16 @@ public class RouteContext {
                 String sql = """
                              SELECT r.name,
                              ta.name AS team_a_name,
-                             tb.name AS team_b_name
+                             tb.name AS team_b_name,
+                             c.name AS course_name,
+                             r.starttime AS start,
+                             r.endtime AS end
                              FROM races r
                              JOIN teams ta ON r.team_id_a = ta.teamid
                 JOIN teams tb ON r.team_id_b = tb.teamid
-                                               """;
+                JOIN courses c ON r.course_id = c.courseid
+                                                ORDER BY datetime(r.starttime)
+                                                """;
 
                 ArrayList<RaceInfo> races = new ArrayList<>();
 
@@ -381,8 +392,12 @@ public class RouteContext {
                             ResultSet rs = ps.executeQuery()) {
 
                     while (rs.next()) {
-                        races.add(new RaceInfo(rs.getString("name"), rs.getString("team_a_name"),
-                                               rs.getString("team_b_name") ));
+                        races.add(new RaceInfo(rs.getString("name"),
+                                               rs.getString("team_a_name"),
+                                               rs.getString("team_b_name"),
+                                               rs.getString("course_name"),
+                                               rs.getString("start"),
+                                               rs.getString("end")));
                     }
                 }
 
@@ -392,7 +407,5 @@ public class RouteContext {
                 this.sendText(500, se.getMessage());
             }
         }
-
-        private record RaceInfo(String name, String teamA, String teamB) {}
     }
 }
