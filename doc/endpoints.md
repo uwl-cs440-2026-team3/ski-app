@@ -83,6 +83,37 @@ Registers a coach with the specified email, name, and password. The email must b
 
 The registration will fail if the email in the request has already been used to register a user (with any role). The name is not required to be unique.
 
+### /schedule
+
+#### Request
+
+Requires access level: admin
+
+```json
+{
+  "name" : name,
+  "team_a" : team_name,
+  "team_b" : team_name,
+  "course" : course_name,
+  "start" : datetime,
+  "duration" : minutes,
+}
+```
+
+Schedules a race between the specified teams on the specified course. The beginning of the race is given by the start field and must be in the format YYYY-MM-DDTHH:MM (T is a literal T character as required by ISO\_8601). The duration of the race is given as a nonnegative number of minutes.
+
+The request will be rejected if the teams or course do not exist, either of the teams are already scheduled for a race within 30 minutes exclusive of this one, the course is already taken for a race within 30 minutes exclusive of this one, or the start time is in the past at the time of processing the request.
+
+#### Response
+
+* 201 Created - if the request succeeded
+* 400 Bad Request - Invalid JSON or missing required fields
+* 400 Bad Request - if the format of the start or duration field is invalid
+* 400 Bad Request - if the start datetime is in the past
+* 400 Bad Request - if team\_a and team\_b are the same team
+* 409 Conflict - if any of the teams or courses conflict as described in the request section.
+* 403 Forbidden - Missing or invalid authorization token
+
 ### /getmembers
 
 #### Request
