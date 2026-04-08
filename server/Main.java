@@ -85,8 +85,7 @@ public class Main {
             team_id_b INTEGER NOT NULL REFERENCES teams (teamid),
             course_id INTEGER NOT NULL REFERENCES courses (courseid),
             starttime STRING NOT NULL,
-            endtime   STRING NOT NULL,
-            CHECK (starttime >= datetime("now")));
+            endtime   STRING NOT NULL);
 
         """;
 
