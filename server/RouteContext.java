@@ -2,6 +2,8 @@ import com.sun.net.httpserver.*;
 import java.io.*;
 import java.security.*;
 import java.sql.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.regex.Pattern;
 
@@ -127,6 +129,16 @@ public class RouteContext {
             if (!this.minutesRegEx.matcher(req.duration).matches()) {
                 this.sendText(400, "invalid duration");
                 return;
+            }
+
+            try {
+                LocalDateTime t = LocalDateTime.parse(req.start);
+                if (t.compareTo(LocalDateTime.now()) < 0) {
+                    this.sendText(400, "start time is in the past");
+                    return;
+                }
+            } catch (DateTimeParseException e) {
+                assert(false);
             }
 
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
