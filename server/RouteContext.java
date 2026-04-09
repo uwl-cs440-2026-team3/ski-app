@@ -35,14 +35,14 @@ public class RouteContext {
                              new GetMembersHandler(hx).handle());
     }
 
-    private static class TeamCreateHandler extends
-        AuthFlow.PrivilegedHandler<TeamCreateRequest> {
+    private static class TeamCreateHandler extends AuthFlow.PrivilegedHandler<TeamCreateRequest> {
         public TeamCreateHandler(HttpExchange hx) {
             super(hx, TeamCreateRequest.class, "POST");
         }
 
         private int getUserIdByEmail(Connection conn, String email) throws SQLException {
-            String sql = "SELECT userid FROM users WHERE email = ?";
+            // Pull only active users (role_mask > 0)
+            String sql = "SELECT userid FROM users WHERE email = ? AND role_mask > 0";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, email);
                 try (ResultSet rs = ps.executeQuery()) {
@@ -55,38 +55,41 @@ public class RouteContext {
         @Override
         void handleDetail(TeamCreateRequest req) throws IOException {
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
-                int skier1Id = getUserIdByEmail(conn, req.skier1_email());
-                int skier2Id = getUserIdByEmail(conn, req.skier2_email());
-                int coachId = getUserIdByEmail(conn, req.coach_email());
+                conn.setAutoCommit(false); // Start transaction
+                try {
+                    // Bring only active users, (role_mask > 0)
+                    int skier1Id = getUserIdByEmail(conn, req.skier1_email());
+                    int skier2Id = getUserIdByEmail(conn, req.skier2_email());
+                    int coachId = getUserIdByEmail(conn, req.coach_email());
 
-                if (skier1Id == -1 || skier2Id == -1 || coachId == -1) {
-                    this.sendText(400, "One or more users (skiers or coach) do not exist.");
-                    return;
-                }
+                    String sql = "INSERT INTO teams (name, skier1_id, skier2_id, coach_id) VALUES (?, ?, ?, ?)";
+                    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                        ps.setString(1, req.name());
+                        ps.setInt(2, skier1Id);
+                        ps.setInt(3, skier2Id);
+                        ps.setInt(4, coachId);
+                        ps.executeUpdate();
+                    }
 
-                String sql = "INSERT INTO teams (name, skier1_id, skier2_id, coach_id) VALUES (?, ?, ?, ?)";
-                try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                    ps.setString(1, req.name());
-                    ps.setInt(2, skier1Id);
-                    ps.setInt(3, skier2Id);
-                    ps.setInt(4, coachId);
-                    ps.executeUpdate();
+                    conn.commit(); // confirm if it is succesful
+                    this.sendText(201, "Team created");
+
+                } catch (SQLException se) {
+                    conn.rollback(); // Rollback if an error was found
+                    String msg = se.getMessage();
+                    if (msg.contains("teams.name")) {
+                        this.conflict("Team name already exists");
+                    } else if (msg.contains("skier1_id") || msg.contains("skier2_id")) {
+                        this.conflict("One of the skiers is already in a team");
+                    } else if (msg.contains("coach_id")) {
+                        this.conflict("The coach is already assigned to a team");
+                    } else {
+                        this.sendText(500, msg);
+                    }
                 }
             } catch (SQLException se) {
-                String msg = se.getMessage();
-                if (msg.contains("teams.name")) {
-                    this.conflict("Team name already exists");
-                } else if (msg.contains("skier1_id") || msg.contains("skier2_id")) {
-                    this.conflict("One of the skiers is already in a team");
-                } else if (msg.contains("coach_id")) {
-                    this.conflict("The coach is already assigned to a team");
-                } else {
-                    this.sendText(500, msg);
-                }
-            return;
+                this.sendText(500, se.getMessage());
             }
-
-            this.sendText(201, "Team created");
         }
     }
 
