@@ -148,7 +148,7 @@ The response includes all users in the system at the time the request was proces
 
 Requires access level: admin
 
-Requests a list of all future races.
+Requests a list of all non-archived races (all races that do not have results recorded yet).
 
 #### Response
 * 200 OK - if the request succeeds
