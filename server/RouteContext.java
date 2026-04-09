@@ -397,9 +397,8 @@ public class RouteContext {
                                   String team) {}
     }
 
-
     private static class GetTeamsHandler extends
-        AuthFlow.PrivilegedHandler<NoBodyRequest>     {
+        AuthFlow.PrivilegedHandler<NoBodyRequest> {
         public GetTeamsHandler(HttpExchange hx) {
             super(hx, NoBodyRequest.class, "GET");
         }
@@ -411,7 +410,7 @@ public class RouteContext {
                 String sql = "SELECT name FROM teams";
 
                 // list to hold our gathered teams in
-                ArrayList<TeamInfo> teams = new ArrayList<>();
+                ArrayList<String> teams = new ArrayList<>();
 
                 // execute our statement
                 try (PreparedStatement ps = conn.prepareStatement(sql);
@@ -420,7 +419,7 @@ public class RouteContext {
                     // for each result
                     while (rs.next()) {
                         // add them to the list
-                        teams.add(new TeamInfo(rs.getString("name")));
+                        teams.add(rs.getString("name"));
                     }
                 }
 
@@ -431,8 +430,6 @@ public class RouteContext {
                 this.sendText(500, se.getMessage());
             }
         }
-
-        private record TeamInfo(String name) {}
     }
 
     private static class GetRacesHandler extends
