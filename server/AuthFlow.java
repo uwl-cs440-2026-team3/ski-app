@@ -17,10 +17,15 @@ public class AuthFlow {
     private record LoginRequest(String email, String password) {};
 
     public static class RegistrationHandler extends
-        AuthFlow.UnprivilegedHandler<RegisterRequest> {
+        RequestLifecycle<RegisterRequest> {
 
         public RegistrationHandler(HttpExchange hx) {
             super(hx, RegisterRequest.class, "POST");
+        }
+
+        @Override
+        boolean isAuthorized() throws IOException {
+            return true;
         }
 
         @Override
@@ -92,10 +97,15 @@ public class AuthFlow {
     }
 
     public static class LoginHandler extends
-        AuthFlow.UnprivilegedHandler<LoginRequest> {
+        RequestLifecycle<LoginRequest> {
 
         public LoginHandler(HttpExchange hx) {
             super(hx, LoginRequest.class, "POST");
+        }
+
+        @Override
+        boolean isAuthorized() throws IOException {
+            return true;
         }
 
         @Override
@@ -163,20 +173,6 @@ public class AuthFlow {
         }
 
         private record LoginResponse(String token, String role) {};
-    }
-
-    private static abstract class UnprivilegedHandler<E extends Record> extends
-        RequestLifecycle<E> {
-
-        public UnprivilegedHandler(HttpExchange hx, Class<E> type,
-                                   String allowMethod) {
-            super(hx, type, allowMethod);
-        }
-
-        @Override
-        boolean isAuthorized() throws IOException {
-            return true;
-        }
     }
 
     public static abstract class PrivilegedHandler<E extends Record>
