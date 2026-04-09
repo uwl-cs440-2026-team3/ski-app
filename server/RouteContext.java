@@ -449,7 +449,7 @@ public class RouteContext {
                 String sql = "SELECT name FROM courses";
 
                 // list to hold our gathered Courses in
-                ArrayList<CourseInfo> courses = new ArrayList<>();
+                ArrayList<String> courses = new ArrayList<>();
 
                 // execute our statement
                 try (PreparedStatement ps = conn.prepareStatement(sql);
@@ -458,7 +458,7 @@ public class RouteContext {
                     // for each result
                     while (rs.next()) {
                         // add them to the list
-                        courses.add(new CourseInfo(rs.getString("name")));
+                        courses.add(rs.getString("name"));
                     }
                 }
 
@@ -469,8 +469,6 @@ public class RouteContext {
                 this.sendText(500, se.getMessage());
             }
         }
-
-        private record CourseInfo(String name) {}
     }
 
     private static class GetRacesHandler extends
