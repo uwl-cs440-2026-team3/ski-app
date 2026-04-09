@@ -152,7 +152,6 @@ Requests a list of all non-archived races (all races that do not have results re
 
 #### Response
 * 200 OK - if the request succeeds
-* 400 Bad Request - if the request JSON is malformed
 * 403 Forbidden - if the user requesting is not logged in as an admin
 
 If the request succeeds, the response body consists of the following JSON response:
