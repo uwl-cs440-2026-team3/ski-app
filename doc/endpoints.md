@@ -160,8 +160,8 @@ If the request succeeds, the response body consists of the following JSON respon
 [
   {
     "name" : race_name,
-    "team_a" : team_name,
-    "team_b" : team_name,
+    "teamA" : team_name,
+    "teamB" : team_name,
     "course" : course_name,
     "start" : datetime,
     "end" : datetime
