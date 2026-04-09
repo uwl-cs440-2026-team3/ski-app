@@ -219,7 +219,7 @@ The response includes all races in the system at the time the request was proces
 
 Requires access level: skier
 
-Requests the information for the team that the skier is a member of.
+Requests the information for the team that the skier or coach is a member of.
 
 #### Response
 * 200 OK - if the request succeeds
