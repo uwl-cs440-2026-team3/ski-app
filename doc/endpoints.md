@@ -92,8 +92,8 @@ Requires access level: admin
 ```json
 {
   "name" : race_name,
-  "team_a" : team_name,
-  "team_b" : team_name,
+  "teamA" : team_name,
+  "teamB" : team_name,
   "course" : course_name,
   "start" : datetime,
   "duration" : minutes,

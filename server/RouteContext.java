@@ -17,8 +17,8 @@ public class RouteContext {
                                     String skier2_email, String coach_email) {};
     public record CourseCreateRequest(String name) {};
     public record ScheduleRequest(String name,
-                                  String team_a,
-                                  String team_b,
+                                  String teamA,
+                                  String teamB,
                                   String course,
                                   String start,
                                   String duration) {};
@@ -178,7 +178,7 @@ public class RouteContext {
 
         @Override
         public void handleDetail(ScheduleRequest req) throws IOException {
-            if (req.team_a.equals(req.team_b)) {
+            if (req.teamA.equals(req.teamB)) {
                 this.sendText(400, "cannot race team against itself");
                 return;
             }
@@ -244,12 +244,12 @@ public class RouteContext {
 
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, req.name);
-                    ps.setString(2, req.team_a);
+                    ps.setString(2, req.teamA);
                     ps.setString(3, req.start);
                     ps.setString(4, req.start);
                     ps.setString(5, req.duration);
 
-                    ps.setString(6, req.team_b);
+                    ps.setString(6, req.teamB);
                     ps.setString(7, req.start);
                     ps.setString(8, req.start);
                     ps.setString(9, req.duration);
@@ -276,22 +276,22 @@ public class RouteContext {
 
                 try (PreparedStatement ps =
                                 conn.prepareStatement("SELECT 1 FROM teams WHERE name = ?")) {
-                    ps.setString(1, req.team_a);
+                    ps.setString(1, req.teamA);
                     ResultSet rs = ps.executeQuery();
 
                     if (!rs.next()) {
-                        this.sendText(400, "team_a not found");
+                        this.sendText(400, "teamA not found");
                         return;
                     }
                 }
 
                 try (PreparedStatement ps =
                                 conn.prepareStatement("SELECT 1 FROM teams WHERE name = ?")) {
-                    ps.setString(1, req.team_b);
+                    ps.setString(1, req.teamB);
                     ResultSet rs = ps.executeQuery();
 
                     if (!rs.next()) {
-                        this.sendText(400, "team_b not found");
+                        this.sendText(400, "teamB not found");
                         return;
                     }
                 }
@@ -312,14 +312,14 @@ public class RouteContext {
                                 conn.prepareStatement("SELECT teamid FROM teams WHERE name = ? AND NOT EXISTS ( SELECT 1 FROM races WHERE (team_id_a = teamid OR team_id_b = teamid) AND endtime > datetime(?, '-30 minutes') AND starttime < datetime(?, ? || ' minutes', '30 minutes'))")) {
                     ;
 
-                    ps.setString(1, req.team_a);
+                    ps.setString(1, req.teamA);
                     ps.setString(2, req.start);
                     ps.setString(3, req.start);
                     ps.setString(4, req.duration);
                     ResultSet rs = ps.executeQuery();
 
                     if (!rs.next()) {
-                        this.sendText(409, "team_a conflicts");
+                        this.sendText(409, "teamA conflicts");
                         return;
                     }
                 }
@@ -328,14 +328,14 @@ public class RouteContext {
                                 conn.prepareStatement("SELECT teamid FROM teams WHERE name = ? AND NOT EXISTS ( SELECT 1 FROM races WHERE (team_id_a = teamid OR team_id_b = teamid) AND endtime > datetime(?, '-30 minutes') AND starttime < datetime(?, ? || ' minutes', '30 minutes'))")) {
                     ;
 
-                    ps.setString(1, req.team_b);
+                    ps.setString(1, req.teamB);
                     ps.setString(2, req.start);
                     ps.setString(3, req.start);
                     ps.setString(4, req.duration);
                     ResultSet rs = ps.executeQuery();
 
                     if (!rs.next()) {
-                        this.sendText(409, "team_b conflicts");
+                        this.sendText(409, "teamB conflicts");
                         return;
                     }
                 }
