@@ -13,7 +13,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class RouteContext {
     private final static ObjectMapper JSONMapper = new ObjectMapper();
 
-    public record TeamCreateRequest(String name, String skier1_email, String skier2_email, String coach_email) {};
+    public record TeamCreateRequest(String name, String skier1_email,
+                                    String skier2_email, String coach_email) {};
     public record CourseCreateRequest(String name) {};
     public record ScheduleRequest(String name,
                                   String team_a,
@@ -51,17 +52,22 @@ public class RouteContext {
         server.createContext("/getmembers",
                              (HttpExchange hx) ->
                              new GetMembersHandler(hx).handle());
+        server.createContext("/getteams",
+                             (HttpExchange hx) ->
+                             new GetTeamsHandler(hx).handle());
         server.createContext("/getraces",
                              (HttpExchange hx) ->
                              new GetRacesHandler(hx).handle());
     }
 
-    private static class TeamCreateHandler extends AuthFlow.PrivilegedHandler<TeamCreateRequest> {
+    private static class TeamCreateHandler extends
+        AuthFlow.PrivilegedHandler<TeamCreateRequest> {
         public TeamCreateHandler(HttpExchange hx) {
             super(hx, TeamCreateRequest.class, "POST");
         }
 
-        private int getUserIdByEmail(Connection conn, String email) throws SQLException {
+        private int getUserIdByEmail(Connection conn,
+                                     String email) throws SQLException {
             // Pull only active users (role_mask > 0)
             String sql = "SELECT userid FROM users WHERE email = ? AND role_mask > 0";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -83,7 +89,8 @@ public class RouteContext {
                     int skier2Id = getUserIdByEmail(conn, req.skier2_email());
                     int coachId = getUserIdByEmail(conn, req.coach_email());
 
-                    String sql = "INSERT INTO teams (name, skier1_id, skier2_id, coach_id) VALUES (?, ?, ?, ?)";
+                    String sql =
+                        "INSERT INTO teams (name, skier1_id, skier2_id, coach_id) VALUES (?, ?, ?, ?)";
                     try (PreparedStatement ps = conn.prepareStatement(sql)) {
                         ps.setString(1, req.name());
                         ps.setInt(2, skier1Id);
@@ -357,7 +364,7 @@ public class RouteContext {
 
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
                 String sql = """
-                             SELECT u.email, u.name, u.role_mask, COALESCE(t.name, '') as team_name 
+                             SELECT u.email, u.name, u.role_mask, COALESCE(t.name, '') as team_name
                              FROM users u
                              LEFT JOIN teams t ON u.userid IN (t.skier1_id, t.skier2_id, t.coach_id)
                              """;
@@ -389,6 +396,42 @@ public class RouteContext {
         private record MemberInfo(String email, String name, String role,
                                   String team) {}
     }
+
+    private static class GetTeamsHandler extends
+        AuthFlow.PrivilegedHandler<NoBodyRequest> {
+        public GetTeamsHandler(HttpExchange hx) {
+            super(hx, NoBodyRequest.class, "GET");
+        }
+
+        @Override
+        void handleDetail(NoBodyRequest req) throws IOException {
+
+            try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
+                String sql = "SELECT name FROM teams";
+
+                // list to hold our gathered teams in
+                ArrayList<String> teams = new ArrayList<>();
+
+                // execute our statement
+                try (PreparedStatement ps = conn.prepareStatement(sql);
+                            ResultSet rs = ps.executeQuery()) {
+
+                    // for each result
+                    while (rs.next()) {
+                        // add them to the list
+                        teams.add(rs.getString("name"));
+                    }
+                }
+
+                // jsonify it and send it
+                String response = RouteContext.JSONMapper.writeValueAsString(teams);
+                this.sendText(200, response);
+            } catch (SQLException se) {
+                this.sendText(500, se.getMessage());
+            }
+        }
+    }
+
     private static class GetRacesHandler extends
         AuthFlow.PrivilegedHandler<NoBodyRequest> {
         public GetRacesHandler(HttpExchange hx) {
