@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class RouteContext {
     private final static ObjectMapper JSONMapper = new ObjectMapper();
 
-    public record TeamCreateRequest(String name, String skier1, String skier2, String coach) {};
+    public record TeamCreateRequest(String name, String skier1_email, String skier2_email, String coach_email) {};
     public record CourseCreateRequest(String name) {};
     public record NoBodyRequest() {};
 
@@ -55,9 +55,9 @@ public class RouteContext {
         @Override
         void handleDetail(TeamCreateRequest req) throws IOException {
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
-                int skier1Id = getUserIdByEmail(conn, req.skier1());
-                int skier2Id = getUserIdByEmail(conn, req.skier2());
-                int coachId = getUserIdByEmail(conn, req.coach());
+                int skier1Id = getUserIdByEmail(conn, req.skier1_email());
+                int skier2Id = getUserIdByEmail(conn, req.skier2_email());
+                int coachId = getUserIdByEmail(conn, req.coach_email());
 
                 if (skier1Id == -1 || skier2Id == -1 || coachId == -1) {
                     this.sendText(400, "One or more users (skiers or coach) do not exist.");
@@ -73,12 +73,17 @@ public class RouteContext {
                     ps.executeUpdate();
                 }
             } catch (SQLException se) {
-                if (se.getMessage().contains("UNIQUE")) {
-                    this.conflict("Team already exists");
+                String msg = se.getMessage();
+                if (msg.contains("teams.name")) {
+                    this.conflict("Team name already exists");
+                } else if (msg.contains("skier1_id") || msg.contains("skier2_id")) {
+                    this.conflict("One of the skiers is already in a team");
+                } else if (msg.contains("coach_id")) {
+                    this.conflict("The coach is already assigned to a team");
                 } else {
-                    this.sendText(500, se.getMessage());
+                    this.sendText(500, msg);
                 }
-                return;
+            return;
             }
 
             this.sendText(201, "Team created");
