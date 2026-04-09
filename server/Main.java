@@ -73,7 +73,10 @@ public class Main {
 
         CREATE TABLE IF NOT EXISTS teams (
             teamid INTEGER PRIMARY KEY ASC AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE);
+            name TEXT NOT NULL UNIQUE,
+            skier1_id INTEGER UNIQUE REFERENCES users(userid),
+            skier2_id INTEGER UNIQUE REFERENCES users(userid),
+            coach_id INTEGER UNIQUE REFERENCES users(userid));
 
         CREATE TABLE IF NOT EXISTS courses (
             courseid INTEGER PRIMARY KEY ASC AUTOINCREMENT,
