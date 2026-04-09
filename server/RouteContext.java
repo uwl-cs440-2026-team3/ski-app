@@ -72,7 +72,7 @@ public class RouteContext {
         private int getUserIdByEmail(Connection conn,
                                      String email) throws SQLException {
             // Pull only active users (role_mask > 0)
-            String sql = "SELECT userid FROM users WHERE email = ? AND role_mask > 0";
+            String sql = "SELECT userid FROM users WHERE email = ?";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, email);
                 try (ResultSet rs = ps.executeQuery()) {
