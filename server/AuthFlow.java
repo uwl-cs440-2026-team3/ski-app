@@ -11,6 +11,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class AuthFlow {
     private static ConcurrentHashMap<String, String> sessions = new
         ConcurrentHashMap<>();
+    public static ConcurrentHashMap<String, String> sessionEmails = new
+        ConcurrentHashMap<>();
     private final static ObjectMapper JSONMapper = new ObjectMapper();
 
     private record RegisterRequest(String email, String name, String password) {};
@@ -113,7 +115,7 @@ public class AuthFlow {
             try {
                 String role = this.authenticate(req);
                 if (!role.equals("noauth")) {
-                    this.sendLoginSuccess(role);
+                    this.sendLoginSuccess(role, req.email);
                 } else {
                     this.sendLoginFailure();
                 }
@@ -150,10 +152,11 @@ public class AuthFlow {
             }
         }
 
-        private void sendLoginSuccess(String role) throws IOException,
+        private void sendLoginSuccess(String role, String email) throws IOException,
             JsonProcessingException {
             String token = this.genToken();
             AuthFlow.sessions.put(token, role);
+            AuthFlow.sessionEmails.put(token, email);
 
             LoginResponse responseData = new LoginResponse(token, role);
             String response = AuthFlow.JSONMapper.writeValueAsString(responseData);
@@ -173,6 +176,25 @@ public class AuthFlow {
         }
 
         private record LoginResponse(String token, String role) {};
+    }
+
+    public static abstract class UnprivilegedHandler<E extends Record> extends
+        RequestLifecycle<E> {
+        public UnprivilegedHandler(HttpExchange hx, Class<E> type,
+                                   String allowMethod) {
+            super(hx, type, allowMethod);
+        }
+
+        @Override
+        boolean isAuthorized() throws IOException {
+            // Has token = access granted.
+            String auth = this.hx.getRequestHeaders().getFirst("Authorization");
+            if (auth == null || !auth.startsWith("Bearer ")) {
+                return false; // No token no entry
+            }
+            String token = auth.substring("Bearer ".length()).trim();
+            return sessions.containsKey(token);
+        }
     }
 
     public static abstract class PrivilegedHandler<E extends Record>
