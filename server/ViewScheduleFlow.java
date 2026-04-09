@@ -77,4 +77,73 @@ public class ViewScheduleFlow {
         private record Response(String name, List<String> skiers, String coach) {};
 
     }
+
+    public static class GetMyRacesHandler extends
+        AuthFlow.UnprivilegedHandler<NoBodyRequest> {
+
+        public GetMyRacesHandler(HttpExchange hx) {
+            super(hx, NoBodyRequest.class, "GET");
+        }
+
+        @Override
+        void handleDetail(NoBodyRequest req) throws IOException {
+            // Get token
+            String auth = this.hx.getRequestHeaders().getFirst("Authorization");
+            if (auth == null || !auth.startsWith("Bearer ")) {
+                this.sendText(403, "Missing token");
+                return;
+            }
+            String token = auth.substring("Bearer ".length()).trim();
+
+            // Find the token that corresponds to the email
+            String email = AuthFlow.getEmailFor(token);
+            if (email == null) {
+                this.sendText(403, "Invalid session");
+                return;
+            }
+
+            try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
+                String sql = """
+                             SELECT r.name,
+                             ta.name AS team_a_name,
+                             tb.name AS team_b_name,
+                             c.name AS course_name,
+                             r.starttime AS start,
+                             r.endtime AS end
+                             FROM races r
+                             JOIN teams ta ON r.team_id_a = ta.teamid
+                JOIN teams tb ON r.team_id_b = tb.teamid
+                JOIN courses c ON r.course_id = c.courseid
+                                                ORDER BY datetime(r.starttime)
+                                                """;
+
+                ArrayList<RaceInfo> races = new ArrayList<>();
+
+                try (PreparedStatement ps = conn.prepareStatement(sql);
+                            ResultSet rs = ps.executeQuery()) {
+
+                    while (rs.next()) {
+                        races.add(new RaceInfo(rs.getString("name"),
+                                               rs.getString("team_a_name"),
+                                               rs.getString("team_b_name"),
+                                               rs.getString("course_name"),
+                                               rs.getString("start"),
+                                               rs.getString("end")));
+                    }
+                }
+
+                String response = JSONMapper.writeValueAsString(races);
+                this.sendText(200, response);
+            } catch (SQLException se) {
+                this.sendText(500, se.getMessage());
+            }
+        }
+
+        public record RaceInfo(String name,
+                               String teamA,
+                               String teamB,
+                               String course,
+                               String start,
+                               String end) {};
+    }
 }
