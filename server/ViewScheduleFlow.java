@@ -38,21 +38,29 @@ public class ViewScheduleFlow {
 
                 // Use the email in SQL Query
                 String sql = """
-                             SELECT t.name, t.skier
+                             SELECT t.name,
+                             s1.name AS skier1_name,
+                             s2.name AS skier2_name,
+                             c.name AS coach_name
                              FROM teams t
                 JOIN users u ON (u.userid = t.skier1_id OR u.userid = t.skier2_id OR u.userid
                 = t.coach_id)
-                             WHERE u.email = ?
-                                             """;
+                             JOIN users s1 ON t.skier1_id = s1.userid
+                JOIN users s2 ON t.skier2_id = s2.userid
+                JOIN users c ON t.coach_id = c.userid
+                WHERE u.email = ?
+                                               """;
 
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, email);
                     ResultSet rs = ps.executeQuery();
                     if (rs.next()) {
                         List<String> skiers = new ArrayList<String>();
+                        skiers.add(rs.getString("skier1_name"));
+                        skiers.add(rs.getString("skier2_name"));
                         Response resp = new Response(rs.getString("name"),
                                                      skiers,
-                                                     "");
+                                                     rs.getString("coach1_name"));
                         String text = JSONMapper.writeValueAsString(resp);
                         this.sendText(200, text);
                     } else {
