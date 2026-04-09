@@ -92,6 +92,11 @@ public class RouteContext {
                     int skier2Id = getUserIdByEmail(conn, req.skier2_email());
                     int coachId = getUserIdByEmail(conn, req.coach_email());
 
+                    if (-1 == skier1Id || -1 == skier2Id || -1 == coachId) {
+                        this.sendText(400, "Unknown user");
+                        return;
+                    }
+
                     String sql =
                         "INSERT INTO teams (name, skier1_id, skier2_id, coach_id) VALUES (?, ?, ?, ?)";
                     try (PreparedStatement ps = conn.prepareStatement(sql)) {
