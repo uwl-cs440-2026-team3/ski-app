@@ -163,6 +163,27 @@ Requests a list of all current teams.
 
 The response includes all teams in the system at the time the request was processed.
 
+### /getcourses
+
+#### Request
+
+Requires access level: admin
+
+Requests a list of all courses.
+
+#### Response
+* 200 OK - if the request succeeds
+* 403 Forbidden - if the user requesting is not logged in as an admin
+
+```json
+[
+  course_name,
+  ...
+]
+```
+
+The response includes all courses in the system at the time the request was processed.
+
 ### /getraces
 
 #### Request
