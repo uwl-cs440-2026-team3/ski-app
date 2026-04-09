@@ -142,6 +142,27 @@ If the request succeeds, the response body consists of the following JSON respon
 
 The response includes all users in the system at the time the request was processed who have the specified role. The email field can be used as a unique identifier (multiple users may have the same name). The users are guaranteed to be sorted by names in ascending, case-insensitive lexicographical order. The role field will be one of "skier", "coach", or "admin". The team field will contain the name of the team the member is assigned to, or the empty string if the member is not assigned to a team.
 
+### /getteams
+
+#### Request
+
+Requires access level: admin
+
+Requests a list of all current teams.
+
+#### Response
+* 200 OK - if the request succeeds
+* 403 Forbidden - if the user requesting is not logged in as an admin
+
+```json
+[
+  team_name,
+  ...
+]
+```
+
+The response includes all teams in the system at the time the request was processed.
+
 ### /getraces
 
 #### Request
@@ -153,7 +174,6 @@ Requests a list of all non-archived races (all races that do not have results re
 #### Response
 * 200 OK - if the request succeeds
 * 403 Forbidden - if the user requesting is not logged in as an admin
-
 If the request succeeds, the response body consists of the following JSON response:
 
 ```json
@@ -171,3 +191,4 @@ If the request succeeds, the response body consists of the following JSON respon
 ```
 
 The response includes all races in the system at the time the request was processed which are scheduled in the future. The start and end fields will be in an unspecified date format suitable for displaying.
+
