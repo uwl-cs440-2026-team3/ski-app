@@ -11,9 +11,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class AuthFlow {
     private static ConcurrentHashMap<String, String> sessions = new
         ConcurrentHashMap<>();
-    public static ConcurrentHashMap<String, String> sessionEmails = new
+    private static ConcurrentHashMap<String, String> sessionEmails = new
         ConcurrentHashMap<>();
     private final static ObjectMapper JSONMapper = new ObjectMapper();
+
+    public static String getEmailFor(String bearerToken) {
+        return AuthFlow.sessionEmails.get(bearerToken);
+    }
 
     private record RegisterRequest(String email, String name, String password) {};
     private record LoginRequest(String email, String password) {};
