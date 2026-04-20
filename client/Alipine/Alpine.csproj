@@ -9,7 +9,35 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="server.p12" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="System.Net.Http.Json" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="server.p12">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Prompts\PromptTimes.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Prompts\PromptSchedule.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Prompts\PromptCancel.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Prompts\PromptTeam.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Prompts\PromptSingle.cs">
+      <SubType>Form</SubType>
+    </Compile>
   </ItemGroup>
 
 </Project>
