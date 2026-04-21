@@ -121,6 +121,34 @@ The request will be rejected if the teams or course do not exist, either of the 
 * 409 Conflict - if any of the teams or courses conflict as described in the request section.
 * 403 Forbidden - Missing or invalid authorization token
 
+### /postscore
+
+Saves the times for a race. This endpoint can also be used to correct erroneous race times saved previously.
+
+#### Request
+
+Requires access level: admin
+
+```json
+{
+  "race" : race_name,
+  "email" : email,
+  "time" : time
+}
+```
+
+Saves or updates the race time for the skier corresponding to the provided email. The race\_name field must be the name of an existing race, and the email must be the email of a skier who participated in the race. Each time field must be in the format MM:SS.s, where MM is minutes, SS is seconds, and s is tenths of a second.
+
+#### Response
+
+* 201 Created - if the request succeeded
+* 400 Bad Request - Invalid JSON or missing required fields
+* 400 Bad Request - if the format of the time fields is invalid
+* 400 Bad Request - if the race name does not correspond to any race
+* 400 Bad Request - if the skier's email does not correspond to a registered skier
+* 400 Bad Request - if the skier was not a participant in the race
+* 403 Forbidden - Missing or invalid authorization token
+
 ### /getmembers
 
 #### Request
