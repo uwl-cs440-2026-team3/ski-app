@@ -213,3 +213,25 @@ If the request succeeds, the response body consists of the following JSON respon
 
 The response includes all races in the system at the time the request was processed which are scheduled in the future. The start and end fields will be in an unspecified date format suitable for displaying.
 
+### /getmyteam
+
+#### Request
+
+Requires access level: skier
+
+Requests the information for the team that the skier or coach is a member of.
+
+#### Response
+* 200 OK - if the request succeeds
+* 403 Forbidden - if the user requesting is not logged in
+* 404 Not Found - if the user is not on a team
+
+If the request succeeds, the response body consists of the following JSON response:
+
+```json
+{
+  "name" : team_name,
+  "skiers" : [name, ...]
+  "coach" : coach,
+}
+```
