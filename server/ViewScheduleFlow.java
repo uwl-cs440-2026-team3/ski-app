@@ -60,7 +60,7 @@ public class ViewScheduleFlow {
                         skiers.add(rs.getString("skier2_name"));
                         Response resp = new Response(rs.getString("name"),
                                                      skiers,
-                                                     rs.getString("coach1_name"));
+                                                     rs.getString("coach_name"));
                         String text = JSONMapper.writeValueAsString(resp);
                         this.sendText(200, text);
                     } else {
