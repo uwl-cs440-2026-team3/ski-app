@@ -77,4 +77,82 @@ public class ViewScheduleFlow {
         private record Response(String name, List<String> skiers, String coach) {};
 
     }
+
+    public static class GetMyRacesHandler extends
+        AuthFlow.UnprivilegedHandler<NoBodyRequest> {
+
+        public GetMyRacesHandler(HttpExchange hx) {
+            super(hx, NoBodyRequest.class, "GET");
+        }
+
+        @Override
+        void handleDetail(NoBodyRequest req) throws IOException {
+            // Get token
+            String auth = this.hx.getRequestHeaders().getFirst("Authorization");
+            if (auth == null || !auth.startsWith("Bearer ")) {
+                this.sendText(403, "Missing token");
+                return;
+            }
+            String token = auth.substring("Bearer ".length()).trim();
+
+            // Find the token that corresponds to the email
+            String email = AuthFlow.getEmailFor(token);
+            if (email == null) {
+                this.sendText(403, "Invalid session");
+                return;
+            }
+
+            try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
+                String sql = """
+                             SELECT r.name, ta.name AS team_a_name, tb.name AS team_b_name, c.name AS course_name,  r.starttime AS start, r.endtime AS end
+                             FROM users u
+                             JOIN teams t
+                             ON t.skier1_id = u.userid
+                OR t.skier2_id = u.userid
+                OR t.coach_id  = u.userid
+                                              JOIN races r
+                ON r.team_id_a = t.teamid
+                OR r.team_id_b = t.teamid
+                                              JOIN courses c
+                ON c.courseid = r.course_id
+                                              JOIN teams ta
+                ON ta.teamid = r.team_id_a
+                                              JOIN teams tb
+                ON tb.teamid = r.team_id_b
+                WHERE u.email = ?
+                                              AND datetime(r.starttime) >= datetime("now")
+                                              ORDER BY datetime(r.starttime);
+
+                """;
+
+                ArrayList<RaceInfo> races = new ArrayList<>();
+
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setString(1, email);
+                    ResultSet rs = ps.executeQuery();
+
+                    while (rs.next()) {
+                        races.add(new RaceInfo(rs.getString("name"),
+                                               rs.getString("team_a_name"),
+                                               rs.getString("team_b_name"),
+                                               rs.getString("course_name"),
+                                               rs.getString("start"),
+                                               rs.getString("end")));
+                    }
+                }
+
+                String response = JSONMapper.writeValueAsString(races);
+                this.sendText(200, response);
+            } catch (SQLException se) {
+                this.sendText(500, se.getMessage());
+            }
+        }
+
+        public record RaceInfo(String name,
+                               String teamA,
+                               String teamB,
+                               String course,
+                               String start,
+                               String end) {};
+    }
 }

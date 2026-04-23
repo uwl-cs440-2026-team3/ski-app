@@ -64,6 +64,9 @@ public class RouteContext {
         server.createContext("/getmyteam",
                              (HttpExchange hx) ->
                              new ViewScheduleFlow.GetMyTeamHandler(hx).handle());
+        server.createContext("/getmyraces",
+                             (HttpExchange hx) ->
+                             new ViewScheduleFlow.GetMyRacesHandler(hx).handle());
     }
 
     private static class TeamCreateHandler extends

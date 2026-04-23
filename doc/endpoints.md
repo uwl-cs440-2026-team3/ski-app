@@ -235,3 +235,33 @@ If the request succeeds, the response body consists of the following JSON respon
   "coach" : coach,
 }
 ```
+
+### /getmyraces
+
+#### Request
+
+Requires access level: skier
+
+Requests all upcoming races that the skier or coach will be a participant in.
+
+#### Response
+* 200 OK - if the request succeeds
+* 403 Forbidden - if the user requesting is not logged in
+
+If the request succeeds, the response body consists of the following JSON response:
+
+```json
+[
+  {
+    "name" : race_name,
+    "teamA" : team_name,
+    "teamB" : team_name,
+    "course" : course_name,
+    "start" : datetime,
+    "end" : datetime
+  },
+  ...
+]
+```
+
+The response includes all future races the skier or coach is a participant in at the time the request is processed. The start and end fields will be in an unspecified date format suitable for displaying. The response format is the same as for /getraces, and the races will be in ascending order by start datetime.
