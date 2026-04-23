@@ -104,19 +104,23 @@ public class ViewScheduleFlow {
 
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
                 String sql = """
-                             SELECT r.*,
-                             ta.name AS team_a_name,
-                             tb.name AS team_b_name,
-                             c.name AS course_name,
-                             r.starttime AS start,
-                             r.endtime AS end
-                             FROM users u
-                             JOIN teams t ON t.skier1_id = u.userid
-                                          OR t.skier2_id = u.userid
-                             JOIN races r ON r.team1_id = t.teamid
-                                          OR r.team2_id = t.teamid
-                             WHERE u.email = ?
-                             ORDER BY datetime(r.starttime);
+                		    SELECT r.name, ta.name AS team_a_name, tb.name AS team_b_name, c.name AS course_name,  r.starttime AS start, r.endtime AS end
+                		    FROM users u
+                			JOIN teams t
+                			ON t.skier1_id = u.userid 
+                			OR t.skier2_id = u.userid
+                			JOIN races r
+                		    ON r.team_id_a = t.teamid 
+                		    OR r.team_id_b = t.teamid
+                			JOIN courses c
+                			ON c.courseid = r.course_id
+                			JOIN teams ta
+                			ON ta.teamid = r.team_id_a
+                			JOIN teams tb
+                			ON tb.teamid = r.team_id_b
+                		    WHERE u.name = "new1"
+                			ORDER BY datetime(r.starttime);
+
                                                 """;
 
                 ArrayList<RaceInfo> races = new ArrayList<>();
