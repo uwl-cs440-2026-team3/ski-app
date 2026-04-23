@@ -118,7 +118,7 @@ public class ViewScheduleFlow {
                 			ON ta.teamid = r.team_id_a
                 			JOIN teams tb
                 			ON tb.teamid = r.team_id_b
-                		    WHERE u.name = "new1"
+                		    WHERE u.email = ?
                 			ORDER BY datetime(r.starttime);
 
                                                 """;
