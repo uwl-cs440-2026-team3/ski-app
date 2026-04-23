@@ -34,6 +34,7 @@ public abstract class RequestLifecycle<E extends Record> {
             }
 
             if (!this.isAuthorized()) {
+                this.sendText(403, "Not Authorized");
                 return;
             }
 
