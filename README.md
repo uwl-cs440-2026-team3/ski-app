@@ -9,17 +9,22 @@ Text TODO.
 ## Roadmap
 
 - SERVER (endpoint names largely as placeholder, can be changed, note if they get changed)
+
+### Demo 1
 * [x] Endpoint for retrieving users. /getmembers
 * [x] Team field for getmember endpoint
 * [x] Endpoint for retrieving teams. /getteams
-* [ ] Endpoint for retrieving team for a user. /getmyteam
+* [x] Endpoint for retrieving team for a user. /getmyteam
 * [x] Endpoint for retrieving courses. /getcourses
 * [x] Endpoint for scheduling races. /schedule
 * [x] Endpoint for retrieving races. /getraces
-* [ ] Endpoint for retrieving races for a user. /getmyraces
+* [x] Endpoint for retrieving races for a user. /getmyraces
+
+### Demo 2
 * [ ] Endpoint for inserting race times. /postscore
 * [ ] Endpoint for cancelling races (needs to send email notifs). /cancel
-* [ ] Endpoint for rescheduling races. /reschedule
+
+### Demo 3
 * [ ] Send email reminders of upcoming races to appropriate users.
 * [ ] Endpoint for team stats
 * [ ] Endpoint for skier stats
