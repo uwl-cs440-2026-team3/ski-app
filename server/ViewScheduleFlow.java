@@ -109,6 +109,7 @@ public class ViewScheduleFlow {
                              JOIN teams t
                              ON t.skier1_id = u.userid
                 OR t.skier2_id = u.userid
+                OR t.coach_id  = u.userid
                                               JOIN races r
                 ON r.team_id_a = t.teamid
                 OR r.team_id_b = t.teamid
