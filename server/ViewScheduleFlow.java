@@ -120,6 +120,7 @@ public class ViewScheduleFlow {
                                               JOIN teams tb
                 ON tb.teamid = r.team_id_b
                 WHERE u.email = ?
+                                              AND datetime(r.starttime) >= datetime("now")
                                               ORDER BY datetime(r.starttime);
 
                 """;
