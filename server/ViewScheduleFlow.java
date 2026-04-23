@@ -125,8 +125,9 @@ public class ViewScheduleFlow {
 
                 ArrayList<RaceInfo> races = new ArrayList<>();
 
-                try (PreparedStatement ps = conn.prepareStatement(sql);
-                            ResultSet rs = ps.executeQuery()) {
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                            ps.setString(1, email);
+                            ResultSet rs = ps.executeQuery();
 
                     while (rs.next()) {
                         races.add(new RaceInfo(rs.getString("name"),
