@@ -35,6 +35,23 @@ public class AuthFlow {
         }
 
         @Override
+        protected String checkFields(RegisterRequest req) {
+            if (req.name.length() > 64) {
+                return "Name too long";
+            }
+
+            if (req.password.length() < 8) {
+                return "Password too short";
+            }
+
+            if (req.password.length() > 128) {
+                return "Password too long";
+            }
+
+            return null;
+        }
+
+        @Override
         void handleDetail(RegisterRequest req) throws IOException {
 
             String hash;
@@ -72,7 +89,40 @@ public class AuthFlow {
         }
 
         @Override
+        protected String checkFields(RegisterRequest req) {
+            if (req.name.length() > 64) {
+                return "Name too long";
+            }
+
+            if (req.password.length() < 8) {
+                return "Password too short";
+            }
+
+            if (req.password.length() > 128) {
+                return "Password too long";
+            }
+
+            return null;
+        }
+
+        @Override
         void handleDetail(RegisterRequest req) throws IOException {
+
+            if (req.name.length() > 64) {
+                this.sendText(400, "Name too long");
+                return;
+            }
+
+            if (req.password.length() < 8) {
+                this.sendText(400, "Password too short");
+                return;
+            }
+
+            if (req.password.length() > 128) {
+                this.sendText(400, "Password too long");
+                return;
+            }
+
             String hash;
             try {
                 hash = AuthUtil.hashPassword(req.password);
@@ -112,6 +162,19 @@ public class AuthFlow {
         @Override
         boolean isAuthorized() throws IOException {
             return true;
+        }
+
+        @Override
+        protected String checkFields(LoginRequest req) {
+            if (req.password.length() < 8) {
+                return "Password too short";
+            }
+
+            if (req.password.length() > 128) {
+                return "Password too long";
+            }
+
+            return null;
         }
 
         @Override

@@ -37,6 +37,7 @@ public abstract class RequestLifecycle<E extends Record> {
                 return;
             }
 
+
             E req;
             // check if we are doing a get
             if ("GET".equals(method)) {
@@ -62,6 +63,12 @@ public abstract class RequestLifecycle<E extends Record> {
                 return;
             }
 
+            String reason = this.checkFields(req);
+            if (null == reason) {
+                this.badRequest(reason);
+                return;
+            }
+
             this.handleDetail(req);
         } finally {
             this.hx.close();
@@ -70,6 +77,10 @@ public abstract class RequestLifecycle<E extends Record> {
 
     abstract boolean isAuthorized() throws IOException;
     abstract void handleDetail(E req) throws IOException;
+
+    protected String checkFields(E req) {
+        return null;
+    }
 
     protected static boolean isRecognizedHttpMethod(String m) {
         return "GET".equals(m) || "HEAD".equals(m) || "POST".equals(m) ||
