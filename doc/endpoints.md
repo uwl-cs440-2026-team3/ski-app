@@ -10,6 +10,13 @@ All endpoints may reply with 4xx or 5xx responses as applicable and conforming w
 
 Some endpoints are labelled as requiring an access role. These endpoints must be authenticated by providing an `Authenticate` header in the request containing a basic-auth bearer token (see the `/login` endpoint).
 
+The following constraints apply to all request fields (they are not strictly guaranteed in responses). The server may respond with 400 Bad Request if any of these constraints are violated.
+
+- All name fields (user names, team names, etc.) have a maximum length of 64 characters.
+- Passwords have a minimum length of 8 characters, and a maximum length of 128 characters.
+- The local part of an email (the part before the @) has a maximum length of 64 characters.
+- The domain part of an email (the part after the @) has a maximum length of 255 characters.
+
 ### /register
 
 #### Request

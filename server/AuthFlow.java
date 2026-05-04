@@ -35,6 +35,27 @@ public class AuthFlow {
         }
 
         @Override
+        protected String checkFields(RegisterRequest req) {
+            if (req.name.length() > 64) {
+                return "Name too long";
+            }
+
+            if (req.password.length() < 8) {
+                return "Password too short";
+            }
+
+            if (req.password.length() > 128) {
+                return "Password too long";
+            }
+
+            if (!AuthUtil.isEmailValid(req.email)) {
+                return "Invalid email";
+            }
+
+            return null;
+        }
+
+        @Override
         void handleDetail(RegisterRequest req) throws IOException {
 
             String hash;
@@ -69,6 +90,27 @@ public class AuthFlow {
         AuthFlow.PrivilegedHandler<RegisterRequest> {
         public CoachRegistrationHandler(HttpExchange hx) {
             super(hx, RegisterRequest.class, "POST");
+        }
+
+        @Override
+        protected String checkFields(RegisterRequest req) {
+            if (req.name.length() > 64) {
+                return "Name too long";
+            }
+
+            if (req.password.length() < 8) {
+                return "Password too short";
+            }
+
+            if (req.password.length() > 128) {
+                return "Password too long";
+            }
+
+            if (!AuthUtil.isEmailValid(req.email)) {
+                return "Invalid email";
+            }
+
+            return null;
         }
 
         @Override
@@ -112,6 +154,23 @@ public class AuthFlow {
         @Override
         boolean isAuthorized() throws IOException {
             return true;
+        }
+
+        @Override
+        protected String checkFields(LoginRequest req) {
+            if (req.password.length() < 8) {
+                return "Password too short";
+            }
+
+            if (req.password.length() > 128) {
+                return "Password too long";
+            }
+
+            if (!AuthUtil.isEmailValid(req.email)) {
+                return "Invalid email";
+            }
+
+            return null;
         }
 
         @Override

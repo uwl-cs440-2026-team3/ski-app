@@ -75,6 +75,27 @@ public class RouteContext {
             super(hx, TeamCreateRequest.class, "POST");
         }
 
+        @Override
+        protected String checkFields(TeamCreateRequest req) {
+            if (req.name.length() > 64) {
+                return "Name too long";
+            }
+
+            if (!AuthUtil.isEmailValid(req.skier1_email)) {
+                return "Skier 1 email invalid";
+            }
+
+            if (!AuthUtil.isEmailValid(req.skier2_email)) {
+                return "Skier 2 email invalid";
+            }
+
+            if (!AuthUtil.isEmailValid(req.coach_email)) {
+                return "Coach email invalid";
+            }
+
+            return null;
+        }
+
         private int getUserIdByEmail(Connection conn,
                                      String email) throws SQLException {
             // Pull only active users (role_mask > 0)
@@ -142,6 +163,15 @@ public class RouteContext {
         }
 
         @Override
+        protected String checkFields(CourseCreateRequest req) {
+            if (req.name.length() > 64) {
+                return "Name too long";
+            }
+
+            return null;
+        }
+
+        @Override
         void handleDetail(CourseCreateRequest req) throws IOException {
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
                 String sql = "INSERT INTO courses (name) VALUES (?)";
@@ -177,30 +207,35 @@ public class RouteContext {
         }
 
         @Override
-        public void handleDetail(ScheduleRequest req) throws IOException {
+        protected String checkFields(ScheduleRequest req) {
+            if (req.name.length() > 64) {
+                return "Name too long";
+            }
+
             if (req.team_a.equals(req.team_b)) {
-                this.sendText(400, "cannot race team against itself");
-                return;
+                return "Cannot race team against itself";
             }
             if (!this.dateRegEx.matcher(req.start).matches()) {
-                this.sendText(400, "invalid start datetime format");
-                return;
+                return "Invalid start datetime format";
             }
             if (!this.minutesRegEx.matcher(req.duration).matches()) {
-                this.sendText(400, "invalid duration");
-                return;
+                return "Invalid duration";
             }
 
             try {
                 LocalDateTime t = LocalDateTime.parse(req.start);
                 if (t.compareTo(LocalDateTime.now()) < 0) {
-                    this.sendText(400, "start time is in the past");
-                    return;
+                    return "Start time is in the past";
                 }
             } catch (DateTimeParseException e) {
                 assert(false);
             }
 
+            return null;
+        }
+
+        @Override
+        public void handleDetail(ScheduleRequest req) throws IOException {
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
                 String sql = """
                              INSERT INTO races VALUES (
