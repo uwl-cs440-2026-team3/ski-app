@@ -48,6 +48,10 @@ public class AuthFlow {
                 return "Password too long";
             }
 
+            if (!AuthUtil.isEmailValid(req.email)) {
+                return "Invalid email";
+            }
+
             return null;
         }
 
@@ -102,27 +106,15 @@ public class AuthFlow {
                 return "Password too long";
             }
 
+            if (!AuthUtil.isEmailValid(req.email)) {
+                return "Invalid email";
+            }
+
             return null;
         }
 
         @Override
         void handleDetail(RegisterRequest req) throws IOException {
-
-            if (req.name.length() > 64) {
-                this.sendText(400, "Name too long");
-                return;
-            }
-
-            if (req.password.length() < 8) {
-                this.sendText(400, "Password too short");
-                return;
-            }
-
-            if (req.password.length() > 128) {
-                this.sendText(400, "Password too long");
-                return;
-            }
-
             String hash;
             try {
                 hash = AuthUtil.hashPassword(req.password);
@@ -172,6 +164,10 @@ public class AuthFlow {
 
             if (req.password.length() > 128) {
                 return "Password too long";
+            }
+
+            if (!AuthUtil.isEmailValid(req.email)) {
+                return "Invalid email";
             }
 
             return null;

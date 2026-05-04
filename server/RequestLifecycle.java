@@ -64,7 +64,7 @@ public abstract class RequestLifecycle<E extends Record> {
             }
 
             String reason = this.checkFields(req);
-            if (null == reason) {
+            if (null != reason) {
                 this.badRequest(reason);
                 return;
             }

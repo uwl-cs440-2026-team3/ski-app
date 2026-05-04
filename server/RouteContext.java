@@ -81,6 +81,18 @@ public class RouteContext {
                 return "Name too long";
             }
 
+            if (!AuthUtil.isEmailValid(req.skier1_email)) {
+                return "Skier 1 email invalid";
+            }
+
+            if (!AuthUtil.isEmailValid(req.skier2_email)) {
+                return "Skier 2 email invalid";
+            }
+
+            if (!AuthUtil.isEmailValid(req.coach_email)) {
+                return "Coach email invalid";
+            }
+
             return null;
         }
 
