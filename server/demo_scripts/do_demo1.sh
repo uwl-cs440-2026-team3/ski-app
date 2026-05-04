@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Admin login
-ADMIN_TOKEN=$(curl -s -k -X POST -d '{"email" : "jvanderzee@apache.org", "password" : "admin"}' https://localhost:1041/login | awk -F'"' '{print $4}')
+ADMIN_TOKEN=$(curl -s -k -X POST -d '{"email" : "jvanderzee@apache.org", "password" : "adminpassword"}' https://localhost:1041/login | awk -F'"' '{print $4}')
 
 # Skier registration
 curl -s -k -X POST -d '{"email" : "liamchen@noreply.com", "name" : "Liam Chen", "password" : "notsecure"}' https://localhost:1041/register
