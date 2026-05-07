@@ -28,6 +28,7 @@ public class RouteContext {
                            String course,
                            String start,
                            String end) {};
+    public record RemoveCoach(String name) {};
     public record NoBodyRequest() {};
 
     public static void registerRoutes(HttpsServer server) {
@@ -67,6 +68,9 @@ public class RouteContext {
         server.createContext("/getmyraces",
                              (HttpExchange hx) ->
                              new ViewScheduleFlow.GetMyRacesHandler(hx).handle());
+        server.createContext("/removecoach",
+                			 (HttpExchange hx) ->
+                			 new RemoveCoachHandler(hx).handle());
     }
 
     private static class TeamCreateHandler extends
@@ -563,4 +567,39 @@ public class RouteContext {
             }
         }
     }
+    
+    private static class RemoveCoachHandler extends
+    AuthFlow.PrivilegedHandler<RemoveCoach> {
+
+    public RemoveCoachHandler(HttpExchange hx) {
+        super(hx, RemoveCoach.class, "POST");
+    }
+
+    @Override
+    void handleDetail(RemoveCoach req) throws IOException {
+
+        try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
+
+            String sql = "UPDATE teams SET coach_id = ? WHERE name = ?";
+
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+
+                ps.setInt(1, 9999); // placeholder "no coach" id
+                ps.setString(2, req.name);
+
+                int rowsUpdated = ps.executeUpdate();
+
+                if (rowsUpdated > 0) {
+                    this.sendText(200, "Coach removed from team.");
+                } else {
+                    this.sendText(404, "No team of that name found.");
+                }
+            }
+
+        } catch (SQLException se) {
+            this.sendText(500, se.getMessage());
+        }
+    }
+}
+    
 }
