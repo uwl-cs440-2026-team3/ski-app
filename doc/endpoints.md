@@ -121,6 +121,32 @@ The request will be rejected if the teams or course do not exist, either of the 
 * 409 Conflict - if any of the teams or courses conflict as described in the request section.
 * 403 Forbidden - Missing or invalid authorization token
 
+### /cancelrace
+
+#### Request
+
+Requires access level: admin
+
+```json
+{
+  "raceid" : raceid
+}
+```
+
+Cancels a previously scheduled race. The race row is preserved in the database with its status set to `CANCELED`, so the cancellation can be referenced later (for audits, notifications, or reporting). Canceled races are excluded from `/getraces` and `/getmyraces` results.
+
+The `raceid` field is a string containing the integer ID of the race to cancel. The integer ID for a race is assigned automatically when the race is created via `/schedule` (this is the `raceid` primary key in the `races` table).
+
+When a cancellation succeeds, all skiers and coaches assigned to either of the competing teams are notified through the server's configured notification mechanism. A notification delivery failure does not affect the HTTP response: the cancellation is still considered successful and a 200 response is returned.
+
+#### Response
+
+* 200 OK - if the race was canceled successfully
+* 400 Bad Request - Invalid JSON, missing fields, or non-integer raceid
+* 403 Forbidden - Missing or invalid authorization token, or caller is not an admin
+* 404 Not Found - if no race exists with the specified raceid
+* 409 Conflict - if the race has already been canceled
+
 ### /getmembers
 
 #### Request
@@ -207,6 +233,7 @@ If the request succeeds, the response body consists of the following JSON respon
 ```json
 [
   {
+    "raceid" : raceid,
     "name" : race_name,
     "teamA" : team_name,
     "teamB" : team_name,
@@ -218,7 +245,7 @@ If the request succeeds, the response body consists of the following JSON respon
 ]
 ```
 
-The response includes all races in the system at the time the request was processed which are scheduled in the future. The start and end fields will be in an unspecified date format suitable for displaying.
+The response includes all races in the system at the time the request was processed which are scheduled in the future and have not been canceled. The `raceid` field is the integer primary key of the race in the database; it is required when calling `/cancelrace`. The `start` and `end` fields will be in an unspecified date format suitable for displaying.
 
 ### /getmyteam
 
@@ -271,4 +298,4 @@ If the request succeeds, the response body consists of the following JSON respon
 ]
 ```
 
-The response includes all future races the skier or coach is a participant in at the time the request is processed. The start and end fields will be in an unspecified date format suitable for displaying. The response format is the same as for /getraces, and the races will be in ascending order by start datetime.
+The response includes all future races the skier or coach is a participant in at the time the request is processed. The `start` and `end` fields will be in an unspecified date format suitable for displaying. Note that this response intentionally omits the `raceid` field that `/getraces` returns, since skiers and coaches do not have permission to cancel races. Races are returned in ascending order by start datetime.

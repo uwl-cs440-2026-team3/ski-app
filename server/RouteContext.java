@@ -13,6 +13,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class RouteContext {
     private final static ObjectMapper JSONMapper = new ObjectMapper();
 
+    /**
+     * Notifier used by handlers that need to send race-related alerts
+     * (cancellations, reschedules, reminders). Set by Main at startup,
+     * defaults to ConsoleNotifier so handlers never see null.
+     */
+    private static Notifier notifier = new ConsoleNotifier();
+
+    public static void setNotifier(Notifier n) {
+        if (n != null) {
+            notifier = n;
+        }
+    }
+
     public record TeamCreateRequest(String name, String skier1_email,
                                     String skier2_email, String coach_email) {};
     public record CourseCreateRequest(String name) {};
@@ -22,7 +35,9 @@ public class RouteContext {
                                   String course,
                                   String start,
                                   String duration) {};
-    public record RaceInfo(String name,
+    public record CancelRaceRequest(String raceid) {};
+    public record RaceInfo(int raceid,
+                           String name,
                            String teamA,
                            String teamB,
                            String course,
@@ -49,6 +64,9 @@ public class RouteContext {
         server.createContext("/schedule",
                              (HttpExchange hx) ->
                              new ScheduleRaceHandler(hx).handle());
+        server.createContext("/cancelrace",
+                             (HttpExchange hx) ->
+                             new CancelRaceHandler(hx).handle());
         server.createContext("/getmembers",
                              (HttpExchange hx) ->
                              new GetMembersHandler(hx).handle());
@@ -238,7 +256,9 @@ public class RouteContext {
         public void handleDetail(ScheduleRequest req) throws IOException {
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
                 String sql = """
-                             INSERT INTO races VALUES (
+                             INSERT INTO races
+                                 (name, team_id_a, team_id_b, course_id, starttime, endtime)
+                             VALUES (
                                  ?,
                                  (SELECT teamid
                                   FROM teams
@@ -247,6 +267,7 @@ public class RouteContext {
                                                    SELECT 1
                                                    FROM races
                 WHERE (team_id_a = teamid OR team_id_b = teamid)
+                                                   AND status = 'ACTIVE'
                                                    AND endtime > datetime(?, "-30 minutes")
                                                    AND starttime < datetime(?, ? || " minutes", "30 minutes")
                                                )
@@ -258,6 +279,7 @@ public class RouteContext {
                                                    SELECT 1
                                                    FROM races
                 WHERE (team_id_a = teamid OR team_id_b = teamid)
+                                                   AND status = 'ACTIVE'
                                                    AND endtime > datetime(?, "-30 minutes")
                                                    AND starttime < datetime(?, ? || " minutes", "30 minutes")
                                                )
@@ -269,6 +291,7 @@ public class RouteContext {
                                                    SELECT 1
                                                    FROM races
                                                    WHERE (course_id = courseid)
+                                                   AND status = 'ACTIVE'
                                                    AND endtime > datetime(?, "-30 minutes")
                                                    AND starttime < datetime(?, ? || " minutes", "30 minutes")
                                                )
@@ -344,7 +367,7 @@ public class RouteContext {
 
 
                 try (PreparedStatement ps =
-                                conn.prepareStatement("SELECT teamid FROM teams WHERE name = ? AND NOT EXISTS ( SELECT 1 FROM races WHERE (team_id_a = teamid OR team_id_b = teamid) AND endtime > datetime(?, '-30 minutes') AND starttime < datetime(?, ? || ' minutes', '30 minutes'))")) {
+                                conn.prepareStatement("SELECT teamid FROM teams WHERE name = ? AND NOT EXISTS ( SELECT 1 FROM races WHERE (team_id_a = teamid OR team_id_b = teamid) AND status = 'ACTIVE' AND endtime > datetime(?, '-30 minutes') AND starttime < datetime(?, ? || ' minutes', '30 minutes'))")) {
                     ;
 
                     ps.setString(1, req.team_a);
@@ -360,7 +383,7 @@ public class RouteContext {
                 }
 
                 try (PreparedStatement ps =
-                                conn.prepareStatement("SELECT teamid FROM teams WHERE name = ? AND NOT EXISTS ( SELECT 1 FROM races WHERE (team_id_a = teamid OR team_id_b = teamid) AND endtime > datetime(?, '-30 minutes') AND starttime < datetime(?, ? || ' minutes', '30 minutes'))")) {
+                                conn.prepareStatement("SELECT teamid FROM teams WHERE name = ? AND NOT EXISTS ( SELECT 1 FROM races WHERE (team_id_a = teamid OR team_id_b = teamid) AND status = 'ACTIVE' AND endtime > datetime(?, '-30 minutes') AND starttime < datetime(?, ? || ' minutes', '30 minutes'))")) {
                     ;
 
                     ps.setString(1, req.team_b);
@@ -376,7 +399,7 @@ public class RouteContext {
                 }
 
                 try (PreparedStatement ps =
-                                conn.prepareStatement("SELECT courseid FROM courses WHERE name = ? AND NOT EXISTS ( SELECT 1 FROM races WHERE (course_id = courseid) AND endtime > datetime(?, '-30 minutes') AND starttime < datetime(?, ? || ' minutes', '30 minutes'))")) {
+                                conn.prepareStatement("SELECT courseid FROM courses WHERE name = ? AND NOT EXISTS ( SELECT 1 FROM races WHERE (course_id = courseid) AND status = 'ACTIVE' AND endtime > datetime(?, '-30 minutes') AND starttime < datetime(?, ? || ' minutes', '30 minutes'))")) {
                     ;
 
                     ps.setString(1, req.course);
@@ -528,7 +551,8 @@ public class RouteContext {
 
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
                 String sql = """
-                             SELECT r.name,
+                             SELECT r.raceid,
+                             r.name,
                              ta.name AS team_a_name,
                              tb.name AS team_b_name,
                              c.name AS course_name,
@@ -538,6 +562,7 @@ public class RouteContext {
                              JOIN teams ta ON r.team_id_a = ta.teamid
                 JOIN teams tb ON r.team_id_b = tb.teamid
                 JOIN courses c ON r.course_id = c.courseid
+                                                WHERE r.status = 'ACTIVE'
                                                 ORDER BY datetime(r.starttime)
                                                 """;
 
@@ -547,7 +572,8 @@ public class RouteContext {
                             ResultSet rs = ps.executeQuery()) {
 
                     while (rs.next()) {
-                        races.add(new RaceInfo(rs.getString("name"),
+                        races.add(new RaceInfo(rs.getInt("raceid"),
+                                               rs.getString("name"),
                                                rs.getString("team_a_name"),
                                                rs.getString("team_b_name"),
                                                rs.getString("course_name"),
@@ -561,6 +587,141 @@ public class RouteContext {
             } catch (SQLException se) {
                 this.sendText(500, se.getMessage());
             }
+        }
+    }
+
+    /**
+     * Handles POST /cancelrace.
+     *
+     * Marks a race as canceled by setting its status to 'CANCELED'. The
+     * row is preserved (not deleted) so we keep it and so
+     * notifications can reference it. Cancellations are admin-only.
+     *
+     * After a successful cancellation, all participants (both skiers and
+     * the coach of each team) are notified via the configured Notifier.
+     * Notification failures are logged but do not affect the HTTP response.
+     */
+    private static class CancelRaceHandler extends
+        AuthFlow.PrivilegedHandler<CancelRaceRequest> {
+
+        public CancelRaceHandler(HttpExchange hx) {
+            super(hx, CancelRaceRequest.class, "POST");
+        }
+
+        @Override
+        protected String checkFields(CancelRaceRequest req) {
+            // raceid arrives as a String (consistent with how /schedule
+            // takes "duration" as a String); validate it parses and is positive.
+            try {
+                int id = Integer.parseInt(req.raceid);
+                if (id <= 0) {
+                    return "raceid must be positive";
+                }
+            } catch (NumberFormatException e) {
+                return "raceid must be an integer";
+            }
+            return null;
+        }
+
+        @Override
+        void handleDetail(CancelRaceRequest req) throws IOException {
+            int raceId = Integer.parseInt(req.raceid);
+
+            try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
+                conn.setAutoCommit(false);
+                try {
+                    // Lock the row during transaction
+                    String raceName;
+                    String startTime;
+                    String currentStatus;
+                    int teamA;
+                    int teamB;
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            "SELECT name, starttime, status, team_id_a, team_id_b "
+                            + "FROM races WHERE raceid = ?")) {
+                        ps.setInt(1, raceId);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            if (!rs.next()) {
+                                conn.rollback();
+                                this.sendText(404, "Race not found");
+                                return;
+                            }
+                            raceName = rs.getString("name");
+                            startTime = rs.getString("starttime");
+                            currentStatus = rs.getString("status");
+                            teamA = rs.getInt("team_id_a");
+                            teamB = rs.getInt("team_id_b");
+                        }
+                    }
+
+                    if ("CANCELED".equals(currentStatus)) {
+                        conn.rollback();
+                        this.conflict("Race already canceled");
+                        return;
+                    }
+
+                    // gather recipients BEFORE the update, so we
+                    // have everything we need to notify even if anything
+                    // is changed concurrently after we commit.
+                    java.util.List<Notifier.Recipient> recipients =
+                            collectRecipients(conn, teamA, teamB);
+
+                    // Step 3: flip status to CANCELED.
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            "UPDATE races SET status = 'CANCELED' WHERE raceid = ?")) {
+                        ps.setInt(1, raceId);
+                        ps.executeUpdate();
+                    }
+
+                    conn.commit();
+
+                    // fire the notification AFTER the commit. We don't
+                    // want to send "race canceled" emails if the DB write failed of course.
+                    try {
+                        RouteContext.notifier.notifyRaceCanceled(
+                                raceName, startTime, recipients);
+                    } catch (RuntimeException notifyEx) {
+                        // Notification failures must never fail the request.
+                        System.err.println("Notification failed for raceid="
+                                           + raceId + ": "
+                                           + notifyEx.getMessage());
+                    }
+
+                    this.sendText(200, "Race canceled");
+                } catch (SQLException inner) {
+                    conn.rollback();
+                    throw inner;
+                }
+            } catch (SQLException se) {
+                this.sendText(500, se.getMessage());
+            }
+        }
+
+        /**
+         * Collects the email addresses and names of all skiers and coaches
+         * on the two teams competing in this race. Used to populate the
+         * recipient list for cancellation notifications.
+         */
+        private java.util.List<Notifier.Recipient> collectRecipients(
+                Connection conn, int teamA, int teamB) throws SQLException {
+            String sql = """
+                    SELECT u.name, u.email
+                    FROM users u
+                    JOIN teams t ON u.userid IN (t.skier1_id, t.skier2_id, t.coach_id)
+                    WHERE t.teamid = ? OR t.teamid = ?
+                    """;
+            java.util.List<Notifier.Recipient> recipients = new ArrayList<>();
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setInt(1, teamA);
+                ps.setInt(2, teamB);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        recipients.add(new Notifier.Recipient(
+                                rs.getString("name"), rs.getString("email")));
+                    }
+                }
+            }
+            return recipients;
         }
     }
 }
