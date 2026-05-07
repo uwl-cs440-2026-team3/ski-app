@@ -90,6 +90,12 @@ public class Main {
             starttime STRING NOT NULL,
             endtime   STRING NOT NULL);
 
+        CREATE TABLE IF NOT EXISTS results (
+            race_name STRING NOT_NULL,
+            skier_email STRING NOT_NULL,
+            time STRING
+        );
+
         """;
 
         String sqlRegisterAdmin = """

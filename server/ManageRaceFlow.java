@@ -12,6 +12,9 @@ public class ManageRaceFlow {
                                    String course,
                                    String start,
                                    String duration) {};
+    private record PostScoreRequest(String race_name,
+                                    String email,
+                                    String time) {};
 
     public static class ScheduleRaceHandler extends
         AuthFlow.PrivilegedHandler<ScheduleRequest> {
@@ -218,6 +221,38 @@ public class ManageRaceFlow {
             }
 
             return;
+        }
+    }
+
+    static class PostScoreHandler extends
+        AuthFlow.PrivilegedHandler<PostScoreRequest> {
+
+        private static Pattern timeRegEx =
+            Pattern.compile("^\\d\\d:\\d\\d\\.\\d$");
+
+        public PostScoreHandler(HttpExchange hx) {
+            super(hx, PostScoreRequest.class, "POST");
+        }
+
+        @Override
+        protected String checkFields(PostScoreRequest req) {
+            if (req.race_name.length() > 64) {
+                return "Race name too long";
+            }
+
+            if (!AuthUtil.isEmailValid(req.email)) {
+                return "Invalid email";
+            }
+
+            if (!timeRegEx.matcher(req.time).matches()) {
+                return "Invalid time";
+            }
+
+            return null;
+        }
+
+        @Override
+        void handleDetail(PostScoreRequest req) {
         }
     }
 }
