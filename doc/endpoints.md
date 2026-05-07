@@ -109,7 +109,7 @@ Requires access level: admin
 
 Schedules a race between the specified teams on the specified course. The beginning of the race is given by the start field and must be in the format YYYY-MM-DDTHH:MM (T is a literal T character as required by ISO\_8601). The duration of the race is given as a nonnegative number of minutes.
 
-The request will be rejected if the teams or course do not exist, either of the teams are already scheduled for a race within 30 minutes exclusive of this one, the course is already taken for a race within 30 minutes exclusive of this one, or the start time is in the past at the time of processing the request.
+The request will be rejected if the teams or course do not exist, either of the teams are already scheduled for a race within 30 minutes exclusive of this one, the course is already taken for a race within 30 minutes exclusive of this one, the start time is in the past at the time of processing the request, or another currently-active race already has the same name. Canceled races do not count toward the name-uniqueness check, so the name of a canceled race may be reused.
 
 #### Response
 
@@ -118,7 +118,7 @@ The request will be rejected if the teams or course do not exist, either of the 
 * 400 Bad Request - if the format of the start or duration field is invalid
 * 400 Bad Request - if the start datetime is in the past
 * 400 Bad Request - if team\_a and team\_b are the same team
-* 409 Conflict - if any of the teams or courses conflict as described in the request section.
+* 409 Conflict - if any of the teams or courses conflict as described in the request section, or if another active race already has the requested name
 * 403 Forbidden - Missing or invalid authorization token
 
 ### /cancelrace
@@ -129,23 +129,22 @@ Requires access level: admin
 
 ```json
 {
-  "raceid" : raceid
+  "name" : race_name
 }
 ```
 
-Cancels a previously scheduled race. The race row is preserved in the database with its status set to `CANCELED`, so the cancellation can be referenced later (for audits, notifications, or reporting). Canceled races are excluded from `/getraces` and `/getmyraces` results.
+Cancels a previously scheduled race, identified by name. The race row is preserved in the database with its status set to `CANCELED`, so the cancellation can be referenced later (for audits, notifications, or reporting). Canceled races are excluded from `/getraces` and `/getmyraces` results.
 
-The `raceid` field is a string containing the integer ID of the race to cancel. The integer ID for a race is assigned automatically when the race is created via `/schedule` (this is the `raceid` primary key in the `races` table).
+Because `/schedule` enforces that at most one race may be active with any given name at a time, identifying a race by name is unambiguous. If only canceled races exist with the requested name, the server treats this as if no such race exists and returns 404.
 
 When a cancellation succeeds, all skiers and coaches assigned to either of the competing teams are notified through the server's configured notification mechanism. A notification delivery failure does not affect the HTTP response: the cancellation is still considered successful and a 200 response is returned.
 
 #### Response
 
 * 200 OK - if the race was canceled successfully
-* 400 Bad Request - Invalid JSON, missing fields, or non-integer raceid
+* 400 Bad Request - Invalid JSON or missing required fields
 * 403 Forbidden - Missing or invalid authorization token, or caller is not an admin
-* 404 Not Found - if no race exists with the specified raceid
-* 409 Conflict - if the race has already been canceled
+* 404 Not Found - if no active race exists with the specified name
 
 ### /getmembers
 

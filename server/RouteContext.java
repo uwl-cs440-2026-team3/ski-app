@@ -35,7 +35,7 @@ public class RouteContext {
                                   String course,
                                   String start,
                                   String duration) {};
-    public record CancelRaceRequest(String raceid) {};
+    public record CancelRaceRequest(String name) {};
     public record MarkNotificationReadRequest(String notificationid) {};
     public record RaceInfo(int raceid,
                            String name,
@@ -262,6 +262,22 @@ public class RouteContext {
         @Override
         public void handleDetail(ScheduleRequest req) throws IOException {
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
+                // Check active-name uniqueness up front. /schedule and
+                // /cancelrace both rely on the invariant that at most one
+                // active race exists per name, so we enforce it here.
+                // Canceled races sharing this name are fine -- they don't
+                // count as active.
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT 1 FROM races WHERE name = ? AND status = 'ACTIVE'")) {
+                    ps.setString(1, req.name);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) {
+                            this.conflict("A race with this name is already active");
+                            return;
+                        }
+                    }
+                }
+
                 String sql = """
                              INSERT INTO races
                                  (name, team_id_a, team_id_b, course_id, starttime, endtime)
@@ -601,8 +617,15 @@ public class RouteContext {
      * Handles POST /cancelrace.
      *
      * Marks a race as canceled by setting its status to 'CANCELED'. The
-     * row is preserved (not deleted) so we keep it and so
+     * row is preserved (not deleted) so we keep an audit trail and so
      * notifications can reference it. Cancellations are admin-only.
+     *
+     * The race is identified by name. Because /schedule enforces that
+     * only one ACTIVE race may exist with a given name at any time,
+     * "the race named X" is unambiguous. If the only race with that
+     * name is already canceled, the lookup finds nothing and we return
+     * 404 (rather than 409) — there simply is no active race by that
+     * name to cancel.
      *
      * After a successful cancellation, all participants (both skiers and
      * the coach of each team) are notified via the configured Notifier.
@@ -617,63 +640,52 @@ public class RouteContext {
 
         @Override
         protected String checkFields(CancelRaceRequest req) {
-            // raceid arrives as a String (consistent with how /schedule
-            // takes "duration" as a String); validate it parses and is positive.
-            try {
-                int id = Integer.parseInt(req.raceid);
-                if (id <= 0) {
-                    return "raceid must be positive";
-                }
-            } catch (NumberFormatException e) {
-                return "raceid must be an integer";
+            if (req.name.length() > 64) {
+                return "Name too long";
             }
             return null;
         }
 
         @Override
         void handleDetail(CancelRaceRequest req) throws IOException {
-            int raceId = Integer.parseInt(req.raceid);
-
             try (Connection conn = DriverManager.getConnection(Config.databaseURL)) {
                 conn.setAutoCommit(false);
                 try {
-                    // Lock the row during transaction
-                    String raceName;
+                    // Look up the active race by name. The combination
+                    // (name, status='ACTIVE') is guaranteed unique by
+                    // the uniqueness check in /schedule, so this finds
+                    // at most one row.
+                    int raceId;
                     String startTime;
-                    String currentStatus;
                     int teamA;
                     int teamB;
                     try (PreparedStatement ps = conn.prepareStatement(
-                            "SELECT name, starttime, status, team_id_a, team_id_b "
-                            + "FROM races WHERE raceid = ?")) {
-                        ps.setInt(1, raceId);
+                            "SELECT raceid, starttime, team_id_a, team_id_b "
+                            + "FROM races WHERE name = ? AND status = 'ACTIVE'")) {
+                        ps.setString(1, req.name);
                         try (ResultSet rs = ps.executeQuery()) {
                             if (!rs.next()) {
                                 conn.rollback();
                                 this.sendText(404, "Race not found");
                                 return;
                             }
-                            raceName = rs.getString("name");
+                            raceId = rs.getInt("raceid");
                             startTime = rs.getString("starttime");
-                            currentStatus = rs.getString("status");
                             teamA = rs.getInt("team_id_a");
                             teamB = rs.getInt("team_id_b");
                         }
                     }
 
-                    if ("CANCELED".equals(currentStatus)) {
-                        conn.rollback();
-                        this.conflict("Race already canceled");
-                        return;
-                    }
-
-                    // gather recipients BEFORE the update, so we
-                    // have everything we need to notify even if anything
-                    // is changed concurrently after we commit.
+                    // Gather recipients BEFORE the update so we have
+                    // everything we need to notify even if anything is
+                    // changed concurrently after we commit.
                     java.util.List<Notifier.Recipient> recipients =
                             collectRecipients(conn, teamA, teamB);
 
-                    // Step 3: flip status to CANCELED.
+                    // Flip status to CANCELED. We use raceid here (looked
+                    // up above) rather than name, to make the update fully
+                    // unambiguous even in the presence of any historical
+                    // canceled rows that share this name.
                     try (PreparedStatement ps = conn.prepareStatement(
                             "UPDATE races SET status = 'CANCELED' WHERE raceid = ?")) {
                         ps.setInt(1, raceId);
@@ -682,15 +694,15 @@ public class RouteContext {
 
                     conn.commit();
 
-                    // fire the notification AFTER the commit. We don't
-                    // want to send "race canceled" emails if the DB write failed of course.
+                    // Fire the notification AFTER the commit. We don't
+                    // want to send "race canceled" alerts if the DB write
+                    // failed.
                     try {
                         RouteContext.notifier.notifyRaceCanceled(
-                                raceName, startTime, recipients);
+                                req.name, startTime, recipients);
                     } catch (RuntimeException notifyEx) {
-                        // Notification failures must never fail the request.
-                        System.err.println("Notification failed for raceid="
-                                           + raceId + ": "
+                        System.err.println("Notification failed for race \""
+                                           + req.name + "\": "
                                            + notifyEx.getMessage());
                     }
 
@@ -737,6 +749,9 @@ public class RouteContext {
      *
      * Returns the calling user's notifications, newest first. Any logged-in
      * user can call this; each user only sees their own notifications.
+     *
+     * The frontend can render a notification list, badge, or banner from
+     * this response and use POST /marknotificationread to mark items read.
      */
     private static class GetMyNotificationsHandler extends
         AuthFlow.UnprivilegedHandler<NoBodyRequest> {
@@ -747,7 +762,9 @@ public class RouteContext {
 
         @Override
         void handleDetail(NoBodyRequest req) throws IOException {
-            // Resolve the calling user from their bearer token.
+            // Resolve the calling user from their bearer token. Auth was
+            // already checked by UnprivilegedHandler, so we know the
+            // token is valid; we just need the email it belongs to.
             String auth = this.hx.getRequestHeaders().getFirst("Authorization");
             String token = auth.substring("Bearer ".length()).trim();
             String email = AuthFlow.getEmailFor(token);
