@@ -299,3 +299,56 @@ If the request succeeds, the response body consists of the following JSON respon
 ```
 
 The response includes all future races the skier or coach is a participant in at the time the request is processed. The `start` and `end` fields will be in an unspecified date format suitable for displaying. Note that this response intentionally omits the `raceid` field that `/getraces` returns, since skiers and coaches do not have permission to cancel races. Races are returned in ascending order by start datetime.
+
+### /mynotifications
+
+#### Request
+
+Requires access level: skier (any logged-in user)
+
+Requests the calling user's notifications. Each user only ever sees their own notifications; the response is filtered server-side based on the bearer token.
+
+#### Response
+
+* 200 OK - if the request succeeds
+* 403 Forbidden - if the user is not logged in
+
+If the request succeeds, the response body is a JSON array, newest first:
+
+```json
+[
+  {
+    "notificationid" : notificationid,
+    "type" : type,
+    "message" : message,
+    "created_at" : timestamp,
+    "read_at" : timestamp
+  },
+  ...
+]
+```
+
+The `type` field is one of `RACE_CANCELED`, `RACE_RESCHEDULED`, or `RACE_REMINDER`. The `message` field contains a human-readable summary suitable for direct display to the user. The `created_at` field is an ISO 8601 timestamp indicating when the notification was generated. The `read_at` field is `null` for unread notifications, or an ISO 8601 timestamp indicating when the user marked it read.
+
+### /marknotificationread
+
+#### Request
+
+Requires access level: skier (any logged-in user)
+
+```json
+{
+  "notificationid" : notificationid
+}
+```
+
+Marks a single notification as read. Users can only mark their own notifications; attempting to mark another user's notification returns 404 (the server does not distinguish "not yours" from "doesn't exist" in the response).
+
+The `notificationid` field is a string containing the integer ID of the notification, as returned by `/mynotifications`.
+
+#### Response
+
+* 200 OK - if the notification was marked read
+* 400 Bad Request - Invalid JSON, missing fields, or non-integer notificationid
+* 403 Forbidden - if the user is not logged in
+* 404 Not Found - if no notification with the given id belongs to the calling user

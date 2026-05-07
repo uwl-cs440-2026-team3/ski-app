@@ -21,6 +21,14 @@ public class Main {
         KeyManager[] keys = Main.loadCertificateOrBust(serverCert, passphrase);
         Main.initDBOrBust(Config.databaseURL);
 
+        // Configure notification delivery: log to console for debugging
+        // AND persist to the database so the frontend can fetch them via
+        // /mynotifications. The composite fans every notify() call out to
+        // both implementations.
+        RouteContext.setNotifier(new CompositeNotifier(
+            new ConsoleNotifier(),
+            new DatabaseNotifier(Config.databaseURL)));
+
         try {
             SSLContext ctx = SSLContext.getInstance("TLSv1.2");
             ctx.init(keys, null, null);
@@ -91,6 +99,14 @@ public class Main {
             starttime STRING NOT NULL,
             endtime   STRING NOT NULL,
             status    STRING NOT NULL DEFAULT 'ACTIVE');
+
+        CREATE TABLE IF NOT EXISTS notifications (
+            notificationid INTEGER PRIMARY KEY ASC AUTOINCREMENT,
+            user_id    INTEGER NOT NULL REFERENCES users(userid),
+            type       STRING NOT NULL,
+            message    STRING NOT NULL,
+            created_at STRING NOT NULL,
+            read_at    STRING);
 
         """;
 

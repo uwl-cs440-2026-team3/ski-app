@@ -36,6 +36,7 @@ public class RouteContext {
                                   String start,
                                   String duration) {};
     public record CancelRaceRequest(String raceid) {};
+    public record MarkNotificationReadRequest(String notificationid) {};
     public record RaceInfo(int raceid,
                            String name,
                            String teamA,
@@ -85,6 +86,12 @@ public class RouteContext {
         server.createContext("/getmyraces",
                              (HttpExchange hx) ->
                              new ViewScheduleFlow.GetMyRacesHandler(hx).handle());
+        server.createContext("/mynotifications",
+                             (HttpExchange hx) ->
+                             new GetMyNotificationsHandler(hx).handle());
+        server.createContext("/marknotificationread",
+                             (HttpExchange hx) ->
+                             new MarkNotificationReadHandler(hx).handle());
     }
 
     private static class TeamCreateHandler extends
@@ -722,6 +729,133 @@ public class RouteContext {
                 }
             }
             return recipients;
+        }
+    }
+
+    /**
+     * Handles GET /mynotifications.
+     *
+     * Returns the calling user's notifications, newest first. Any logged-in
+     * user can call this; each user only sees their own notifications.
+     */
+    private static class GetMyNotificationsHandler extends
+        AuthFlow.UnprivilegedHandler<NoBodyRequest> {
+
+        public GetMyNotificationsHandler(HttpExchange hx) {
+            super(hx, NoBodyRequest.class, "GET");
+        }
+
+        @Override
+        void handleDetail(NoBodyRequest req) throws IOException {
+            // Resolve the calling user from their bearer token.
+            String auth = this.hx.getRequestHeaders().getFirst("Authorization");
+            String token = auth.substring("Bearer ".length()).trim();
+            String email = AuthFlow.getEmailFor(token);
+            if (email == null) {
+                this.sendText(403, "Invalid session");
+                return;
+            }
+
+            String sql = """
+                SELECT n.notificationid, n.type, n.message,
+                       n.created_at, n.read_at
+                FROM notifications n
+                JOIN users u ON u.userid = n.user_id
+                WHERE u.email = ?
+                ORDER BY datetime(n.created_at) DESC
+                """;
+
+            try (Connection conn = DriverManager.getConnection(Config.databaseURL);
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, email);
+                try (ResultSet rs = ps.executeQuery()) {
+                    java.util.List<NotificationInfo> out = new ArrayList<>();
+                    while (rs.next()) {
+                        out.add(new NotificationInfo(
+                            rs.getInt("notificationid"),
+                            rs.getString("type"),
+                            rs.getString("message"),
+                            rs.getString("created_at"),
+                            rs.getString("read_at")));
+                    }
+                    this.sendText(200, RouteContext.JSONMapper.writeValueAsString(out));
+                }
+            } catch (SQLException se) {
+                this.sendText(500, se.getMessage());
+            }
+        }
+
+        public record NotificationInfo(int notificationid,
+                                       String type,
+                                       String message,
+                                       String created_at,
+                                       String read_at) {};
+    }
+
+    /**
+     * Handles POST /marknotificationread.
+     *
+     * Sets the read_at timestamp for a single notification. The user can
+     * only mark their own notifications read; attempts to mark someone
+     * else's notification return 404 (we don't distinguish "doesn't exist"
+     * from "isn't yours" to avoid leaking notification IDs across users).
+     */
+    private static class MarkNotificationReadHandler extends
+        AuthFlow.UnprivilegedHandler<MarkNotificationReadRequest> {
+
+        public MarkNotificationReadHandler(HttpExchange hx) {
+            super(hx, MarkNotificationReadRequest.class, "POST");
+        }
+
+        @Override
+        protected String checkFields(MarkNotificationReadRequest req) {
+            try {
+                int id = Integer.parseInt(req.notificationid);
+                if (id <= 0) {
+                    return "notificationid must be positive";
+                }
+            } catch (NumberFormatException e) {
+                return "notificationid must be an integer";
+            }
+            return null;
+        }
+
+        @Override
+        void handleDetail(MarkNotificationReadRequest req) throws IOException {
+            int notifId = Integer.parseInt(req.notificationid);
+
+            String auth = this.hx.getRequestHeaders().getFirst("Authorization");
+            String token = auth.substring("Bearer ".length()).trim();
+            String email = AuthFlow.getEmailFor(token);
+            if (email == null) {
+                this.sendText(403, "Invalid session");
+                return;
+            }
+
+            // Update the row, but only if it belongs to the calling user.
+            // The JOIN-in-WHERE pattern via subquery means rows belonging
+            // to other users simply don't match and aren't updated.
+            String sql = """
+                UPDATE notifications
+                SET read_at = ?
+                WHERE notificationid = ?
+                  AND user_id = (SELECT userid FROM users WHERE email = ?)
+                """;
+
+            try (Connection conn = DriverManager.getConnection(Config.databaseURL);
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, java.time.Instant.now().toString());
+                ps.setInt(2, notifId);
+                ps.setString(3, email);
+                int updated = ps.executeUpdate();
+                if (updated == 0) {
+                    this.sendText(404, "Notification not found");
+                    return;
+                }
+                this.sendText(200, "Marked read");
+            } catch (SQLException se) {
+                this.sendText(500, se.getMessage());
+            }
         }
     }
 }
