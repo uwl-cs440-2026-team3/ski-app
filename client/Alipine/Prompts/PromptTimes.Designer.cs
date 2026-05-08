@@ -32,36 +32,31 @@
             btnOk = new Button();
             btnCancel = new Button();
             cb_Race = new ComboBox();
-            lb_TeamOne = new Label();
-            nud_SkierThree = new NumericUpDown();
-            nud_SkierFour = new NumericUpDown();
-            lb_SkierThree = new Label();
-            lb_SkierFour = new Label();
-            lb_SkierTwo = new Label();
-            lb_SkierOne = new Label();
-            nud_SkierTwo = new NumericUpDown();
-            nud_SkierOne = new NumericUpDown();
-            lb_TeamTwo = new Label();
-            ((System.ComponentModel.ISupportInitialize)nud_SkierThree).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)nud_SkierFour).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)nud_SkierTwo).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)nud_SkierOne).BeginInit();
+            nud_time = new NumericUpDown();
+            tableLayoutPanel1 = new TableLayoutPanel();
+            tableLayoutPanel6 = new TableLayoutPanel();
+            label1 = new Label();
+            cb_skier = new ComboBox();
+            label3 = new Label();
+            ((System.ComponentModel.ISupportInitialize)nud_time).BeginInit();
+            tableLayoutPanel1.SuspendLayout();
+            tableLayoutPanel6.SuspendLayout();
             SuspendLayout();
             // 
             // label2
             // 
             label2.AutoSize = true;
-            label2.Location = new Point(16, 29);
+            label2.Location = new Point(3, 0);
             label2.Name = "label2";
-            label2.Size = new Size(37, 15);
+            label2.Size = new Size(32, 15);
             label2.TabIndex = 4;
-            label2.Text = "Race?";
+            label2.Text = "Race";
             // 
             // btnOk
             // 
-            btnOk.Location = new Point(187, 226);
+            btnOk.Location = new Point(197, 3);
             btnOk.Name = "btnOk";
-            btnOk.Size = new Size(167, 49);
+            btnOk.Size = new Size(188, 42);
             btnOk.TabIndex = 6;
             btnOk.Text = "Submit";
             btnOk.UseVisualStyleBackColor = true;
@@ -69,9 +64,9 @@
             // 
             // btnCancel
             // 
-            btnCancel.Location = new Point(14, 226);
+            btnCancel.Location = new Point(3, 3);
             btnCancel.Name = "btnCancel";
-            btnCancel.Size = new Size(167, 49);
+            btnCancel.Size = new Size(188, 42);
             btnCancel.TabIndex = 7;
             btnCancel.Text = "Cancel";
             btnCancel.UseVisualStyleBackColor = true;
@@ -81,131 +76,102 @@
             // 
             cb_Race.DropDownStyle = ComboBoxStyle.DropDownList;
             cb_Race.FormattingEnabled = true;
-            cb_Race.Location = new Point(59, 26);
+            cb_Race.Location = new Point(73, 3);
             cb_Race.Name = "cb_Race";
-            cb_Race.Size = new Size(295, 23);
+            cb_Race.Size = new Size(312, 23);
             cb_Race.TabIndex = 19;
-            cb_Race.SelectedIndexChanged += validate;
+            cb_Race.SelectedIndexChanged += ValidateRaces;
             // 
-            // lb_TeamOne
+            // nud_time
             // 
-            lb_TeamOne.AutoSize = true;
-            lb_TeamOne.Location = new Point(142, 66);
-            lb_TeamOne.Name = "lb_TeamOne";
-            lb_TeamOne.Size = new Size(95, 15);
-            lb_TeamOne.TabIndex = 21;
-            lb_TeamOne.Text = "{teamnamehere}";
-            lb_TeamOne.TextAlign = ContentAlignment.TopCenter;
+            nud_time.Location = new Point(73, 173);
+            nud_time.Maximum = new decimal(new int[] { 1000, 0, 0, 0 });
+            nud_time.Name = "nud_time";
+            nud_time.Size = new Size(312, 23);
+            nud_time.TabIndex = 26;
+            nud_time.Value = new decimal(new int[] { 1, 0, 0, 0 });
             // 
-            // nud_SkierThree
+            // tableLayoutPanel1
             // 
-            nud_SkierThree.Location = new Point(16, 197);
-            nud_SkierThree.Maximum = new decimal(new int[] { 1000, 0, 0, 0 });
-            nud_SkierThree.Name = "nud_SkierThree";
-            nud_SkierThree.Size = new Size(167, 23);
-            nud_SkierThree.TabIndex = 22;
+            tableLayoutPanel1.ColumnCount = 2;
+            tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18.05054F));
+            tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 81.9494553F));
+            tableLayoutPanel1.Controls.Add(nud_time, 1, 2);
+            tableLayoutPanel1.Controls.Add(cb_skier, 1, 1);
+            tableLayoutPanel1.Controls.Add(label1, 0, 1);
+            tableLayoutPanel1.Controls.Add(label2, 0, 0);
+            tableLayoutPanel1.Controls.Add(cb_Race, 1, 0);
+            tableLayoutPanel1.Controls.Add(label3, 0, 2);
+            tableLayoutPanel1.Location = new Point(8, 7);
+            tableLayoutPanel1.Margin = new Padding(2);
+            tableLayoutPanel1.Name = "tableLayoutPanel1";
+            tableLayoutPanel1.RowCount = 3;
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 33.3333321F));
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 33.3333321F));
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 33.3333321F));
+            tableLayoutPanel1.Size = new Size(388, 257);
+            tableLayoutPanel1.TabIndex = 32;
             // 
-            // nud_SkierFour
+            // tableLayoutPanel6
             // 
-            nud_SkierFour.Location = new Point(187, 197);
-            nud_SkierFour.Maximum = new decimal(new int[] { 1000, 0, 0, 0 });
-            nud_SkierFour.Name = "nud_SkierFour";
-            nud_SkierFour.Size = new Size(167, 23);
-            nud_SkierFour.TabIndex = 23;
+            tableLayoutPanel6.ColumnCount = 2;
+            tableLayoutPanel6.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            tableLayoutPanel6.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            tableLayoutPanel6.Controls.Add(btnOk, 1, 0);
+            tableLayoutPanel6.Controls.Add(btnCancel, 0, 0);
+            tableLayoutPanel6.Location = new Point(8, 268);
+            tableLayoutPanel6.Margin = new Padding(2);
+            tableLayoutPanel6.Name = "tableLayoutPanel6";
+            tableLayoutPanel6.RowCount = 1;
+            tableLayoutPanel6.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            tableLayoutPanel6.Size = new Size(388, 48);
+            tableLayoutPanel6.TabIndex = 36;
             // 
-            // lb_SkierThree
+            // label1
             // 
-            lb_SkierThree.AutoSize = true;
-            lb_SkierThree.Location = new Point(16, 179);
-            lb_SkierThree.Name = "lb_SkierThree";
-            lb_SkierThree.Size = new Size(138, 15);
-            lb_SkierThree.TabIndex = 24;
-            lb_SkierThree.Text = "{subjectnamehere}s time";
+            label1.AutoSize = true;
+            label1.Location = new Point(3, 85);
+            label1.Name = "label1";
+            label1.Size = new Size(32, 15);
+            label1.TabIndex = 4;
+            label1.Text = "Skier";
             // 
-            // lb_SkierFour
+            // cb_skier
             // 
-            lb_SkierFour.AutoSize = true;
-            lb_SkierFour.Location = new Point(187, 179);
-            lb_SkierFour.Name = "lb_SkierFour";
-            lb_SkierFour.Size = new Size(138, 15);
-            lb_SkierFour.TabIndex = 25;
-            lb_SkierFour.Text = "{subjectnamehere}s time";
+            cb_skier.DropDownStyle = ComboBoxStyle.DropDownList;
+            cb_skier.FormattingEnabled = true;
+            cb_skier.Location = new Point(73, 88);
+            cb_skier.Name = "cb_skier";
+            cb_skier.Size = new Size(312, 23);
+            cb_skier.TabIndex = 19;
             // 
-            // lb_SkierTwo
+            // label3
             // 
-            lb_SkierTwo.AutoSize = true;
-            lb_SkierTwo.Location = new Point(189, 93);
-            lb_SkierTwo.Name = "lb_SkierTwo";
-            lb_SkierTwo.Size = new Size(138, 15);
-            lb_SkierTwo.TabIndex = 29;
-            lb_SkierTwo.Text = "{subjectnamehere}s time";
-            // 
-            // lb_SkierOne
-            // 
-            lb_SkierOne.AutoSize = true;
-            lb_SkierOne.Location = new Point(16, 93);
-            lb_SkierOne.Name = "lb_SkierOne";
-            lb_SkierOne.Size = new Size(138, 15);
-            lb_SkierOne.TabIndex = 28;
-            lb_SkierOne.Text = "{subjectnamehere}s time";
-            // 
-            // nud_SkierTwo
-            // 
-            nud_SkierTwo.Location = new Point(187, 111);
-            nud_SkierTwo.Maximum = new decimal(new int[] { 1000, 0, 0, 0 });
-            nud_SkierTwo.Name = "nud_SkierTwo";
-            nud_SkierTwo.Size = new Size(167, 23);
-            nud_SkierTwo.TabIndex = 27;
-            // 
-            // nud_SkierOne
-            // 
-            nud_SkierOne.Location = new Point(16, 111);
-            nud_SkierOne.Maximum = new decimal(new int[] { 1000, 0, 0, 0 });
-            nud_SkierOne.Name = "nud_SkierOne";
-            nud_SkierOne.Size = new Size(167, 23);
-            nud_SkierOne.TabIndex = 26;
-            nud_SkierOne.Value = new decimal(new int[] { 1, 0, 0, 0 });
-            // 
-            // lb_TeamTwo
-            // 
-            lb_TeamTwo.AutoSize = true;
-            lb_TeamTwo.Location = new Point(142, 147);
-            lb_TeamTwo.Name = "lb_TeamTwo";
-            lb_TeamTwo.Size = new Size(95, 15);
-            lb_TeamTwo.TabIndex = 30;
-            lb_TeamTwo.Text = "{teamnamehere}";
-            lb_TeamTwo.TextAlign = ContentAlignment.TopCenter;
+            label3.AutoSize = true;
+            label3.Location = new Point(3, 170);
+            label3.Name = "label3";
+            label3.Size = new Size(33, 15);
+            label3.TabIndex = 27;
+            label3.Text = "Time";
             // 
             // PromptTimes
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(380, 292);
+            AutoSize = true;
+            AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            ClientSize = new Size(405, 326);
             ControlBox = false;
-            Controls.Add(lb_TeamTwo);
-            Controls.Add(lb_SkierTwo);
-            Controls.Add(lb_SkierOne);
-            Controls.Add(nud_SkierTwo);
-            Controls.Add(nud_SkierOne);
-            Controls.Add(lb_SkierFour);
-            Controls.Add(lb_SkierThree);
-            Controls.Add(nud_SkierFour);
-            Controls.Add(nud_SkierThree);
-            Controls.Add(lb_TeamOne);
-            Controls.Add(cb_Race);
-            Controls.Add(btnCancel);
-            Controls.Add(btnOk);
-            Controls.Add(label2);
-            FormBorderStyle = FormBorderStyle.FixedToolWindow;
+            Controls.Add(tableLayoutPanel6);
+            Controls.Add(tableLayoutPanel1);
+            FormBorderStyle = FormBorderStyle.FixedDialog;
             Name = "PromptTimes";
             Text = "Input";
-            Load += PromptTimes_Load;
-            ((System.ComponentModel.ISupportInitialize)nud_SkierThree).EndInit();
-            ((System.ComponentModel.ISupportInitialize)nud_SkierFour).EndInit();
-            ((System.ComponentModel.ISupportInitialize)nud_SkierTwo).EndInit();
-            ((System.ComponentModel.ISupportInitialize)nud_SkierOne).EndInit();
+            ((System.ComponentModel.ISupportInitialize)nud_time).EndInit();
+            tableLayoutPanel1.ResumeLayout(false);
+            tableLayoutPanel1.PerformLayout();
+            tableLayoutPanel6.ResumeLayout(false);
             ResumeLayout(false);
-            PerformLayout();
         }
 
         #endregion
@@ -213,15 +179,11 @@
         private Button btnOk;
         private Button btnCancel;
         private ComboBox cb_Race;
-        private Label lb_TeamOne;
-        private NumericUpDown nud_SkierThree;
-        private NumericUpDown nud_SkierFour;
-        private Label lb_SkierThree;
-        private Label lb_SkierFour;
-        private Label lb_SkierTwo;
-        private Label lb_SkierOne;
-        private NumericUpDown nud_SkierTwo;
-        private NumericUpDown nud_SkierOne;
-        private Label lb_TeamTwo;
+        private NumericUpDown nud_time;
+        private TableLayoutPanel tableLayoutPanel1;
+        private TableLayoutPanel tableLayoutPanel6;
+        private Label label1;
+        private ComboBox cb_skier;
+        private Label label3;
     }
 }

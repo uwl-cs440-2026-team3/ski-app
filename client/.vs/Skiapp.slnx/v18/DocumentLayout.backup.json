@@ -1,0 +1,36 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\albri\\Documents\\GitHub\\ski-app\\client\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{F1C2490E-EEEF-D41E-C189-052C3E6C3E6D}|Alipine\\Alpine.csproj|c:\\users\\albri\\documents\\github\\ski-app\\client\\alipine\\views\\coach.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{F1C2490E-EEEF-D41E-C189-052C3E6C3E6D}|Alipine\\Alpine.csproj|solutionrelative:alipine\\views\\coach.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Coach.cs [Design]",
+              "DocumentMoniker": "C:\\Users\\albri\\Documents\\GitHub\\ski-app\\client\\Alipine\\Views\\Coach.cs",
+              "RelativeDocumentMoniker": "Alipine\\Views\\Coach.cs",
+              "ToolTip": "C:\\Users\\albri\\Documents\\GitHub\\ski-app\\client\\Alipine\\Views\\Coach.cs [Design]",
+              "RelativeToolTip": "Alipine\\Views\\Coach.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-07T14:55:17.445Z",
+              "EditorCaption": " [Design]"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

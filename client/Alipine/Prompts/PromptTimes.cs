@@ -1,4 +1,5 @@
 ﻿using Alpine.Helpers;
+using Alpine.Views;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -21,64 +22,63 @@ using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
 
 namespace Alpine
 {
+    // prompt form for entering race times
     public partial class PromptTimes : Form
     {
         public string RaceName => cb_Race.Text;
-        public string TeamASkierOne => nud_SkierOne.Text;
-        public string TeamASkierTwo => nud_SkierTwo.Text;
-        public string TeamBSkierOne => nud_SkierThree.Text;
-        public string TeamBSkierTwo => nud_SkierFour.Text;
+        public string TeamASkierOne => nud_time.Text;
+
+        public string Time => nud_time.ToString();
 
         public PromptTimes()
         {
             InitializeComponent();
 
+            // these allow us to have the help button.... the windows api is really picky
+            this.HelpButton = true;
+            this.MinimizeBox = false;
+            this.MaximizeBox = false;
+            this.ControlBox = true;
+
+            // this is to try to solve scaling issues
+            this.AutoScaleMode = AutoScaleMode.Dpi;
+            this.AutoSize = true;
+            this.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+
             this.Text = "Schedule a race";
 
-            StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedToolWindow;
+            // we want it centered to the main form
+            StartPosition = FormStartPosition.CenterParent;
             AcceptButton = btnOk;
             CancelButton = btnCancel;
 
             this.Visible = false; // we dont show stuff until we get our data from the server
             initMe();
 
-            // TODO database should never have ONLY one team but we should CHECK for that
 
 
         }
 
+        // goes through a few steps to load data from the server
         private async Task initMe()
         {
             // get the races first 
             await LoadRacesAsync();
 
+            // load skiers
+            await LoadMembersAsync();
+
             // auto select the first 
             cb_Race.SelectedIndex = 0;
 
-            await FillStuffPlease();
 
 
             this.Visible = true;
         }
 
-        private async Task FillStuffPlease() {
 
-            //this.Visible = false;
-            // get the races first 
-            await LoadRacesAsyncAgain();
-
-
-
-
-            this.Visible = true;
-
-        }
-
-
-        private void validate(object sender, EventArgs e)
+        private async void ValidateRaces(object sender, EventArgs e)
         {
-            FillStuffPlease();
 
         }
 
@@ -97,7 +97,7 @@ namespace Alpine
                 return;
             }
 
-            if (int.Parse(TeamASkierOne) < 0 || int.Parse(TeamASkierTwo) < 0 || int.Parse(TeamBSkierOne) < 0 || int.Parse(TeamBSkierTwo) < 0)
+            if (int.Parse(TeamASkierOne) < 0)
             {
                 MessageBox.Show(
                     "Times cannot be negative!",
@@ -135,8 +135,6 @@ namespace Alpine
                     foreach (var m in deserialized)
                     {
                         cb_Race.Items.Add(m.name);
-                        lb_TeamOne.Text = m.teamA;
-                        lb_TeamTwo.Text = m.teamB;
                     }
                 }
 
@@ -147,37 +145,45 @@ namespace Alpine
             }
         }
 
-        private async Task LoadRacesAsyncAgain()
+        // partially chatgpt, we load our members into the ui
+        private async Task LoadMembersAsync()
         {
             try
             {
-                // get our json response
+                // send a request to the server and get the response
                 RequestHelpers request = new();
-                string json = await request.PostRequestRaces();
+                string json = await request.PostRequestMembers();
 
-                // deserialize it into the class whatever
-                var deserialized = JsonSerializer.Deserialize<List<Race>>(json);
+                // deserialize it into a list of members
+                var deserialized = JsonSerializer.Deserialize<List<Member>>(json);
 
                 // make sure it isnt null
                 if (deserialized != null)
                 {
+                    // for each user
                     foreach (var m in deserialized)
                     {
-                        lb_TeamOne.Text = m.teamA;
-                        lb_TeamTwo.Text = m.teamB;
+                        if (m.role.Equals("skier")) // if it is a skier we add it to our skier list
+                        {
+                            cb_skier.Items.Add(m.name);
+                        }
                     }
+
                 }
 
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error loading races: " + ex.Message);
+                MessageBox.Show("Error loading members: " + ex.Message);
             }
         }
 
-        private void PromptTimes_Load(object sender, EventArgs e)
-        {
 
+        // for opening the manual
+        protected override void OnHelpButtonClicked(System.ComponentModel.CancelEventArgs e)
+        {
+            e.Cancel = true; // prevent the default
+            Alpine.Helpers.ManualHelpers.openHelperForm(); // we go open the manual
         }
     }
 }

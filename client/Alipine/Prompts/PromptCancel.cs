@@ -1,4 +1,5 @@
 ﻿using Alpine.Helpers;
+using Alpine.Views;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -12,6 +13,7 @@ using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace Alpine
 {
+    // prompt for cancelling a race
     public partial class PromptCancel : Form
     {
         public string Value1 => cb_Race.Text;
@@ -20,48 +22,59 @@ namespace Alpine
         {
             InitializeComponent();
 
+            // these allow us to have the help button.... the windows api is really picky
+            this.HelpButton = true;
+            this.MinimizeBox = false;
+            this.MaximizeBox = false;
+            this.ControlBox = true;
+
             Text = title;
 
             label1.Text = lbl1;
 
-            StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedToolWindow;
+            // we start from the center of the main form
+            StartPosition = FormStartPosition.CenterParent;
             AcceptButton = btnOk;
             CancelButton = btnCancel;
 
             this.Visible = false; // we dont show stuff until we get our data from the server
             initMe();
 
-            // TODO database should never have ONLY one team but we should CHECK for that
-
 
         }
 
+        // goes through a few steps to load data from the server
         private async Task initMe()
         {
+
+            // load our races
             await LoadRacesAsync();
 
-            // auto select the first and second items
+            // auto select the first item
             cb_Race.SelectedIndex = 0;
+           
         }
 
+        // request our races from the server and then add them to our selection box
         private async Task LoadRacesAsync()
         {
             try
             {
-                // get our json response
+                // send a request to the server and get the response
                 RequestHelpers request = new();
                 string json = await request.PostRequestRaces();
 
-                // deserialize it into the class whatever
-                var deserialized = JsonSerializer.Deserialize<List<Member>>(json);
+                // deserialize it into a list of members
+                var deserialized = JsonSerializer.Deserialize<List<Races>>(json);
 
                 // make sure it isnt null
                 if (deserialized != null)
                 {
-                    foreach (var m in deserialized)
+                    // for ever race in the response
+                    foreach (var r in deserialized)
                     {
-                        cb_Race.Items.Add(m.name);
+                        // add it to the selection
+                        cb_Race.Items.Add(r.name);
                     }
                 }
 
@@ -74,7 +87,7 @@ namespace Alpine
 
         private void btnOk_Click(object sender, EventArgs e)
         {
-            // fields cannot be empty, why wait for the server to tell us this when we can nip it in the bud right here
+            // check if stuff is missing first, no use trying to send data we know the server will reject
             if (Value1 == "")
             {
                 MessageBox.Show(
@@ -93,6 +106,13 @@ namespace Alpine
         {
             DialogResult = DialogResult.Cancel;
             Close();
+        }
+
+        // for opening the manual
+        protected override void OnHelpButtonClicked(System.ComponentModel.CancelEventArgs e)
+        {
+            e.Cancel = true; // prevent the default
+            Alpine.Helpers.ManualHelpers.openHelperForm(); // we go open the manual
         }
     }
 }
