@@ -16,87 +16,204 @@ using static Alpine.Helpers.RequestHelpers;
 
 namespace Alpine
 {
+    // the form the admin sees when they log in
     public partial class Admin : Form
     {
-
+        // we need this form to have an event it calls on finished, this is what makes switching between forms in the mainform work
+        public event Action OnLogout;
         public Admin()
         {
             InitializeComponent();
-            lb_name.Text = "Hello " + Globals.Name + "!";
+            lb_name.Text = "Hello " + Globals.Name + "!"; // greet the user in the top left
         }
 
         #region buttons
 
+        // we send to the server to create a team
         async private void btn_CreateTeam_Click(object sender, EventArgs e)
         {
-            // we create the prompt, and it will get the result
+            Globals.Current_Form = "/admin/team"; // keep track of what form we are in for the manual
+
+            // show the prompt, get its return
             var result = PromptTeamHelperClass.Show();
 
+
+            Globals.Current_Form = "admin"; // keep track of what form we are in for the manual
             if (result.ok)
             {
-                await PostTeam(result.teamName, result.firstSkier, result.secondSkier, result.coach);
+                // for holding the emails we get back from the server
+                String coachEmail = "";
+                String skierOneEmail = "";
+                String skierTwoEmail = "";
+
+                // TODO:: ideally i could make this better by having stored the members as objects in the combo box the first time we got them, and i would not have to requery the server
+                // sadly i am running out of time though
+                try
+                {
+                    // get our json response
+                    RequestHelpers request = new();
+                    string json = await request.PostRequestMembers();
+
+                    // deserialize it into a member
+                    var deserialized = JsonSerializer.Deserialize<List<Member>>(json);
+
+                    // make sure it isnt null
+                    if (deserialized != null)
+                    {
+                        // for each user, if there name is of one of our three, we take the email
+                        foreach (var m in deserialized)
+                        {
+                            if (m.name == result.coach)
+                            {
+                                coachEmail = m.email;
+                            }
+                            if (m.name == result.firstSkier)
+                            {
+                                skierOneEmail = m.email;
+                            }
+                            if (m.name == result.secondSkier)
+                            {
+                                skierTwoEmail = m.email;
+                            }
+                        }
+                    }
+
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Error loading members: " + ex.Message);
+                }
+
+                // we send our post to the server
+                var responseHttp = await PostHelpers.PostTeam(result.teamName, skierOneEmail, skierTwoEmail, coachEmail);
+
+                // then we check if the response was good or not
+                ValidationHelpers.responseChecker(responseHttp.status, responseHttp.response);
             }
 
         }
         async private void btn_CreateCourse_Click(object sender, EventArgs e)
         {
-            // we create the prompt, and it will get the result
+            Globals.Current_Form = "/admin/course"; // keep track of what form we are in for the manual
+
+            // show the prompt, get its return
             var result = PromptSingleHelperClass.Show(
                 "Create Course",
                 "Course Name:"
             );
 
+            Globals.Current_Form = "admin"; // keep track of what form we are in for the manual
+
+            // if the prompt closed via "ok"
             if (result.ok)
             {
-                await PostCourse(result.a);
+                // we send our post to the server
+                var responseHttp = await PostHelpers.PostCourse(result.a);
+
+                // then we check if the response was good or not
+                ValidationHelpers.responseChecker(responseHttp.status, responseHttp.response);
             }
 
         }
-
         async private void btn_CreateCoach_Click(object sender, EventArgs e)
         {
-            // we create the prompt, and it will get the result
+            Globals.Current_Form = "/admin/coach"; // keep track of what form we are in for the manual
+
+            // show the prompt, get its return
             var result = PromptCoachHelperClass.Show();
 
+            Globals.Current_Form = "admin"; // keep track of what form we are in for the manual
+
+            // if the prompt closed via "ok"
             if (result.ok)
             {
-                await PostRegisterCoach(result.email, result.username, result.password);
+                // we send our post to the server
+                var responseHttp = await PostHelpers.PostRegisterCoach(result.email, result.username, result.password);
+
+                // then we check if the response was good or not
+                ValidationHelpers.responseChecker(responseHttp.status, responseHttp.response);
             }
         }
-
         async private void btn_ScheduleRace_Click(object sender, EventArgs e)
         {
-            // we create the prompt, and it will get the result
+            Globals.Current_Form = "/admin/schedule"; // keep track of what form we are in for the manual
+
+            // show the prompt, get its return
             var result = PromptScheduleHelperClass.Show();
 
+            Globals.Current_Form = "admin"; // keep track of what form we are in for the manual
+
+            // if the prompt closed via "ok"
             if (result.ok)
             {
-                await PostScheduleRace(result.name, result.teama, result.teamb, result.courseName, result.dateTime, result.minutes);
+                // we send our post to the server
+                var responseHttp = await PostHelpers.PostScheduleRace(result.name, result.teama, result.teamb, result.courseName, result.dateTime, result.minutes);
+
+                // then we check if the response was good or not
+                ValidationHelpers.responseChecker(responseHttp.status, responseHttp.response);
             }
         }
 
         private async void btn_Cancel_Click(object sender, EventArgs e)
         {
-            // we create the prompt, and it will get the result
+            Globals.Current_Form = "/admin/cancel";
+
+            // show the prompt, get its return
             var result = PromptCancelHelperClass.Show(
                 "Cancel Race",
                 "Race Name:"
             );
 
+            Globals.Current_Form = "admin"; // keep track of what form we are in for the manual
+
+            // if the prompt closed via "ok"
             if (result.ok)
             {
-                await PostCancel(result.a);
+                // we send our post to the server
+                var responseHttp = await PostHelpers.PostCancel(result.a);
+
+                // then we check if the response was good or not
+                ValidationHelpers.responseChecker(responseHttp.status, responseHttp.response);
             }
         }
 
         async private void btn_InsertTimes_Click(object sender, EventArgs e)
         {
-            // we create the prompt, and it will get the result
+            Globals.Current_Form = "/admin/times";
+
+            // show the prompt, get its return
             var result = PromptTimesHelperClass.Show();
 
+            Globals.Current_Form = "admin"; // keep track of what form we are in for the manual
+
+            // if the prompt closed via "ok"
             if (result.ok)
             {
-                await PostTimes(result.raceName, result.TeamASkierOne, result.TeamASkierTwo, result.TeamBSkierThree, result.TeamBSkierFour);
+                // we send our post to the server
+                var responseHttp = await PostHelpers.PostTimes(result.raceName, result.TeamASkierOne, result.Time);
+
+                // then we check if the response was good or not
+                ValidationHelpers.responseChecker(responseHttp.status, responseHttp.response);
+            }
+        }
+
+        async private void btn_RemoveCoach_Click(object sender, EventArgs e)
+        {
+            Globals.Current_Form = "/admin/removecoach"; // keep track of what form we are in for the manual
+
+            // show the prompt, get its return
+            var result = PromptRemoveCoachHelperClass.Show("Select coach to remove", "yeah");
+
+            Globals.Current_Form = "admin"; // keep track of what form we are in for the manual
+
+            // if the prompt closed via "ok"
+            if (result.ok)
+            {
+                // we send our post to the server
+                var responseHttp = await PostHelpers.PostRemoveCoach(result.a);
+
+                // then we check if the response was good or not
+                ValidationHelpers.responseChecker(responseHttp.status, responseHttp.response);
             }
         }
 
@@ -105,268 +222,10 @@ namespace Alpine
         {
             // tell it everything went okay and close
             this.DialogResult = DialogResult.OK;
+            OnLogout?.Invoke();
             this.Close();
         }
         #endregion
-
-
-        // TODO these should be externalized like our requests at some point
-        #region endpoints
-
-        // https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient / chatgpt / https://learn.microsoft.com/en-us/dotnet/api/system.net.http.json.httpclientjsonextensions.postasjsonasync?view=net-10.0
-        private async Task PostTeam(String name, String skier1, String skier2, String coach)
-        {
-            // we can check our data here
-            String coachEmail = "";
-            String skierOneEmail = "";
-            String skierTwoEmail = "";
-
-            // this sucks do it better later..... store members as objects in combo boxes and then we can just get the fields directly instead of re asking the server TODO
-            try
-            {
-                // get our json response
-                RequestHelpers request = new();
-                string json = await request.PostRequestMembers();
-
-                // deserialize it into the class whatever
-                var deserialized = JsonSerializer.Deserialize<List<Member>>(json);
-
-                // make sure it isnt null
-                if (deserialized != null)
-                {
-                    //allSkiers.Clear();
-                    foreach (var m in deserialized)
-                    {
-                        if (m.name == coach)
-                        {
-                            coachEmail = m.email;
-                        }
-                        if (m.name == skier1)
-                        {
-                            skierOneEmail = m.email;
-                        }
-                        if (m.name == skier2)
-                        {
-                            skierTwoEmail = m.email;
-                        }
-                    }
-                }
-
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error loading members: " + ex.Message);
-            }
-
-            // attach the auth token
-            Globals.Client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", Globals.Token);
-
-            var user = new
-            {
-                name = name,
-                skier1_email = skierOneEmail,
-                skier2_email = skierTwoEmail,
-                coach_email = coachEmail
-            };
-
-            // send our post
-            using HttpResponseMessage response = await Globals.Client.PostAsJsonAsync("team", user);
-
-
-            // log the response code we get
-            if (response.StatusCode != HttpStatusCode.Created)
-            {
-                // alert the user that a conflict occured
-                SystemSounds.Exclamation.Play();
-            }
-            rtb_log.AppendText(response.StatusCode.ToString() + "\n");
-
-            // await the rest of the response text
-            string responseBody = await response.Content.ReadAsStringAsync();
-
-            // log it
-            rtb_log.AppendText(responseBody + "\n");
-        }
-
-        // https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient / chatgpt / https://learn.microsoft.com/en-us/dotnet/api/system.net.http.json.httpclientjsonextensions.postasjsonasync?view=net-10.0
-        private async Task PostCourse(String name)
-        {
-            // we can check our data here
-
-            // attach the auth token
-            Globals.Client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", Globals.Token);
-
-            var user = new
-            {
-                name = name,
-            };
-
-            // send our post
-            using HttpResponseMessage response = await Globals.Client.PostAsJsonAsync("course", user);
-
-
-            // log the response code we get
-            if (response.StatusCode != HttpStatusCode.Created)
-            {
-                // alert the user that a conflict occured
-                SystemSounds.Exclamation.Play();
-            }
-            rtb_log.AppendText(response.StatusCode.ToString() + "\n");
-
-            // await the rest of the response text
-            string responseBody = await response.Content.ReadAsStringAsync();
-
-            // log it
-            rtb_log.AppendText(responseBody + "\n");
-        }
-
-        // https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient / chatgpt / https://learn.microsoft.com/en-us/dotnet/api/system.net.http.json.httpclientjsonextensions.postasjsonasync?view=net-10.0
-        private async Task PostRegisterCoach(String email, String name, String password)
-        {
-            // we can check our data here
-            // sql sanitization? check email? make sure stuff makes sense?
-
-            // attach the auth token
-            Globals.Client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", Globals.Token);
-
-            var user = new
-            {
-                email = email,
-                name = name,
-                password = password
-            };
-
-            // send our post
-            using HttpResponseMessage response = await Globals.Client.PostAsJsonAsync("registercoach", user);
-
-
-            // log the response code we get
-            if (response.StatusCode != HttpStatusCode.Created)
-            {
-                // alert the user that a conflict occured
-                SystemSounds.Exclamation.Play();
-            }
-            rtb_log.AppendText(response.StatusCode.ToString() + "\n");
-
-            // await the rest of the response text
-            string responseBody = await response.Content.ReadAsStringAsync();
-
-            // log it
-            rtb_log.AppendText(responseBody + "\n");
-        }
-
-        // https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient / chatgpt / https://learn.microsoft.com/en-us/dotnet/api/system.net.http.json.httpclientjsonextensions.postasjsonasync?view=net-10.0
-        private async Task PostScheduleRace(String name, String team_a, String team_b, String course_name, String datetime, String minutes)
-        {
-            // we can check our data here
-            // sql sanitization? check email? make sure stuff makes sense?
-
-            // attach the auth token
-            Globals.Client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", Globals.Token);
-
-            var user = new
-            {
-                name = name,
-                team_a = team_a,
-                team_b = team_b,
-                course = course_name,
-                start = datetime,
-                duration = minutes
-            };
-
-            // send our post
-            using HttpResponseMessage response = await Globals.Client.PostAsJsonAsync("schedule", user);
-
-
-            // log the response code we get
-            if (response.StatusCode != HttpStatusCode.Created)
-            {
-                // alert the user that a conflict occured
-                SystemSounds.Exclamation.Play();
-            }
-
-            // await the rest of the response text
-            string responseBody = await response.Content.ReadAsStringAsync();
-
-            // log it
-            rtb_log.AppendText($"Status: {(int)response.StatusCode} {response.StatusCode}\n");
-            rtb_log.AppendText($"Response: {responseBody}\n");
-        }
-
-        private async Task PostCancel(String name)
-        {
-            // we can check our data here
-
-            // attach the auth token
-            Globals.Client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", Globals.Token);
-
-            var user = new
-            {
-                name = name,
-            };
-
-            // send our post
-            using HttpResponseMessage response = await Globals.Client.PostAsJsonAsync("cancel", user);
-
-
-            // log the response code we get
-            if (response.StatusCode != HttpStatusCode.Created)
-            {
-                // alert the user that a conflict occured
-                SystemSounds.Exclamation.Play();
-            }
-            rtb_log.AppendText(response.StatusCode.ToString() + "\n");
-
-            // await the rest of the response text
-            string responseBody = await response.Content.ReadAsStringAsync();
-
-            // log it
-            rtb_log.AppendText(responseBody + "\n");
-        }
-
-        private async Task PostTimes(String name, String skier1, String skier2, String skier3, String skier4)
-        {
-            // we can check our data here
-
-            // attach the auth token
-            Globals.Client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", Globals.Token);
-
-            // how ever this end point will work
-            var user = new
-            {
-                name = name,
-            };
-
-            // send our post
-            using HttpResponseMessage response = await Globals.Client.PostAsJsonAsync("cancel", user);
-
-
-            // log the response code we get
-            if (response.StatusCode != HttpStatusCode.Created)
-            {
-                // alert the user that a conflict occured
-                SystemSounds.Exclamation.Play();
-            }
-            rtb_log.AppendText(response.StatusCode.ToString() + "\n");
-
-            // await the rest of the response text
-            string responseBody = await response.Content.ReadAsStringAsync();
-
-            // log it
-            rtb_log.AppendText(responseBody + "\n");
-        }
-
-        #endregion
-
-
-
-
     }
 
 }

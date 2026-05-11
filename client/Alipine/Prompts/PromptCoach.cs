@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Alpine.Views;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -9,6 +10,7 @@ using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace Alpine
 {
+    // prompt for registering a new coach
     public partial class PromptCoach : Form
     {
         public string Email => tb_Email.Text;
@@ -17,15 +19,22 @@ namespace Alpine
 
         public PromptCoach()
         {
-
             InitializeComponent();
+
+            // these allow us to have the help button.... the windows api is really picky
+            this.HelpButton = true;
+            this.MinimizeBox = false;
+            this.MaximizeBox = false;
+            this.ControlBox = true;
+
             this.Text = "Register a coach";
 
-            StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedToolWindow;
+            // we start from the center of the main form
+            StartPosition = FormStartPosition.CenterParent;
+
             AcceptButton = btn_Submit;
             CancelButton = btn_Cancel;
-            
+
         }
 
         private void btnOk_Click(object sender, EventArgs e)
@@ -41,6 +50,7 @@ namespace Alpine
                 );
                 return;
             }
+            // validate that the email, username, and password make sense, if it does not, return
             else if (!(Alpine.Helpers.ValidationHelpers.CheckEmail(Email) && Alpine.Helpers.ValidationHelpers.CheckName(Username) && Alpine.Helpers.ValidationHelpers.CheckPassword(Password)))
             {
                 return;
@@ -50,10 +60,18 @@ namespace Alpine
             Close();
         }
 
+        // if the user clicks cancel we do nothing
         private void btnCancel_Click(object sender, EventArgs e)
         {
             DialogResult = DialogResult.Cancel;
             Close();
+        }
+
+        // for opening the manual
+        protected override void OnHelpButtonClicked(System.ComponentModel.CancelEventArgs e)
+        {
+            e.Cancel = true; // prevent the default
+            Alpine.Helpers.ManualHelpers.openHelperForm(); // we go open the manual
         }
     }
 }

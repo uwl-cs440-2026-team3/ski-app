@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "dgSpecHash": "JCuvkSrhZ4I=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\albri\\Documents\\GitHub\\ski-app\\client\\Alipine\\Alpine.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\albri\\.nuget\\packages\\microsoft.web.webview2\\1.0.3912.50\\microsoft.web.webview2.1.0.3912.50.nupkg.sha512",
+    "C:\\Users\\albri\\.nuget\\packages\\system.net.http.json\\10.0.3\\system.net.http.json.10.0.3.nupkg.sha512"
+  ],
+  "logs": [
+    {
+      "code": "NU1510",
+      "level": "Warning",
+      "message": "PackageReference System.Net.Http.Json will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.",
+      "projectPath": "C:\\Users\\albri\\Documents\\GitHub\\ski-app\\client\\Alipine\\Alpine.csproj",
+      "warningLevel": 1,
+      "filePath": "C:\\Users\\albri\\Documents\\GitHub\\ski-app\\client\\Alipine\\Alpine.csproj",
+      "libraryId": "System.Net.Http.Json",
+      "targetGraphs": [
+        "net10.0-windows7.0"
+      ]
+    }
+  ]
+}

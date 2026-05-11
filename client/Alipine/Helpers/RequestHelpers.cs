@@ -8,8 +8,11 @@ using System.Text;
 
 namespace Alpine.Helpers
 {
+    // helper class containing methods for server data requests
     internal class RequestHelpers
     {
+        
+        // object that represents a member of our system
         public class Member
         {
             public string email { get; set; }
@@ -18,11 +21,13 @@ namespace Alpine.Helpers
             public string team { get; set; }
         }
 
+        // object that represents a team 
         public class Team
         {
             public string name { get; set; }
         }
 
+        // object that represents a specifc users team 
         public class MyTeam
         {
             public string name { get; set; }
@@ -30,11 +35,34 @@ namespace Alpine.Helpers
             public string coach { get; set; }
         }
 
+        // object that represents a specifc users races
+        public class MyRaces
+        {
+            public string name { get; set; }
+            public string teamA { get; set; }
+            public string teamB { get; set; }
+            public string course { get; set; }
+            public DateTime start { get; set; }
+            public DateTime end { get; set; }
+        }
+
+        public class Races
+        {
+            public string name { get; set; }
+            public string teamA { get; set; }
+            public string teamB { get; set; }
+            public string course { get; set; }
+            public DateTime start { get; set; }
+            public DateTime end { get; set; }
+        }
+
+        // object that represents a course 
         public class Course
         {
             public string name { get; set; }
         }
 
+        // object that represents a race
         public class Race
         {
             public string name { get; set; }
@@ -42,7 +70,7 @@ namespace Alpine.Helpers
             public string teamB { get; set; }
         }
 
-        // https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient / chatgpt / https://learn.microsoft.com/en-us/dotnet/api/system.net.http.json.httpclientjsonextensions.postasjsonasync?view=net-10.0
+        
         public async Task<string> PostRequestMembers()
         {
 
@@ -63,7 +91,7 @@ namespace Alpine.Helpers
             return responseBody;
         }
 
-        // https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient / chatgpt / https://learn.microsoft.com/en-us/dotnet/api/system.net.http.json.httpclientjsonextensions.postasjsonasync?view=net-10.0
+        
         public async Task<string> PostRequestTeams()
         {
 
@@ -132,10 +160,26 @@ namespace Alpine.Helpers
             Globals.Client.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Bearer", Globals.Token);
 
-            var user = new { };
-
             // send our post
             using HttpResponseMessage response = await Globals.Client.GetAsync("getmyteam");
+
+            // await the rest of the response text
+            string responseBody = await response.Content.ReadAsStringAsync();
+
+            // okay then we return the json string
+
+            return responseBody;
+        }
+
+        public async Task<string> PostRequestMyRaces()
+        {   
+
+            // attach the auth token
+            Globals.Client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", Globals.Token);
+
+            // send our post
+            using HttpResponseMessage response = await Globals.Client.GetAsync("getmyraces");
 
             // await the rest of the response text
             string responseBody = await response.Content.ReadAsStringAsync();

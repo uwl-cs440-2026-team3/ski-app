@@ -1,4 +1,5 @@
 ﻿using Alpine.Helpers;
+using Alpine.Views;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -21,6 +22,7 @@ using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
 
 namespace Alpine
 {
+    // prompt form for scheduling races
     public partial class PromptSchedule : Form
     {
         public string RaceName => tb_Name.Text;
@@ -32,17 +34,29 @@ namespace Alpine
 
         public string Minutes = "-1";
 
+        // list of all teams
         private List<string> allTeams = new();
+
+        // locking system
         private bool updating = false;
 
         public PromptSchedule()
         {
             InitializeComponent();
 
+            // these allow us to have the help button.... the windows api is really picky
+            this.HelpButton = true;
+            this.MinimizeBox = false;
+            this.MaximizeBox = false;
+            this.ControlBox = true;
+
+
             this.Text = "Schedule a race";
 
-            StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedToolWindow;
+            // we start from the center of the main form
+            StartPosition = FormStartPosition.CenterParent;
+
+
             AcceptButton = btnOk;
             CancelButton = btnCancel;
 
@@ -50,14 +64,16 @@ namespace Alpine
             this.Visible = false; // we dont show stuff until we get our data from the server
             initMe();
 
-            // TODO database should never have ONLY one team but we should CHECK for that
-
 
         }
 
+        // goes through a few steps to load data from the server
         private async Task initMe()
         {
+            // load our teams
             await LoadTeamsAsync();
+
+            // load our courses
             await LoadCoursesAsync();
 
             // auto select the first and second items
@@ -66,79 +82,124 @@ namespace Alpine
             cb_Course.SelectedIndex = 0;
 
 
-            this.Visible = true;
+            this.Visible = true; // finally show this form
         }
 
+        // guided by chatgpt, the following methods are what make it so you cannot select the same skier in both fields
 
-        private void validate(object sender, EventArgs e)
-        {
-
-
-        }
-
+        // whenever we select an item from the first combobox
         private void cb_TeamOne_SelectedIndexChanged(object sender, EventArgs e)
         {
-            UpdateTeamTwoItems();
+            UpdateTeamTwoItems_(); // we update the second comboboxes items
         }
 
         private void cb_TeamTwo_SelectedIndexChanged(object sender, EventArgs e)
         {
-            UpdateTeamOneItems();
+            UpdateTeamTwoItems(); // we update the first comboboxes items
         }
 
         // thanks chatgpt
 
-        private void UpdateTeamTwoItems()
+        // we update the first teams
+        private void UpdateTeamTwoItems_()
         {
-            if (updating) return;
+            // if we are alreadying updating do not try to update
+            if (updating)
+            {
+                return;
+            }
+
+            // lock the door
             updating = true;
 
+            // keep track of which ones are selected
             string keepSelection = cb_TeamOne.SelectedItem?.ToString();
             string selectedTwo = cb_TeamTwo.SelectedItem?.ToString();
 
+            // remove all items from the first check box
             cb_TeamOne.Items.Clear();
 
+            // for each team
             foreach (string s in allTeams)
             {
+                // as long as it is not the one that was selected in the second combobox
                 if (s != selectedTwo)
                     cb_TeamOne.Items.Add(s);
             }
 
+            // if we found a selection from before and the combobox actually has that item
             if (keepSelection != null && cb_TeamOne.Items.Contains(keepSelection))
-                cb_TeamOne.SelectedItem = keepSelection;
+            {
+                cb_TeamOne.SelectedItem = keepSelection; // we reselect that item
+            }  
             else if (cb_TeamOne.Items.Count > 0)
-                cb_TeamOne.SelectedIndex = 0;
+            {
+                cb_TeamOne.SelectedIndex = 0; // otherwise we just select the first item
+            }        
+            else // something has gone wrong
+            {
+                MessageBox.Show("PromptTeam error loading items into first combobox");
+                updating = false;
+                return;
+            }
 
+            // unlock the door
             updating = false;
         }
 
-        private void UpdateTeamOneItems()
+        // we update the second teams
+        private void UpdateTeamTwoItems()
         {
-            if (updating) return;
+            // if we are alreadying updating do not try to update
+            if (updating)
+            {
+                return;
+            }
+
+            // lock the door
             updating = true;
 
+            // keep track of which ones are selected
             string keepSelection = cb_TeamTwo.SelectedItem?.ToString();
             string selectedOne = cb_TeamOne.SelectedItem?.ToString();
 
+            // remove all items from the second check box
             cb_TeamTwo.Items.Clear();
 
+            // for each skier
             foreach (string s in allTeams)
             {
+                // as long as it is not the one that was selected in the first combobox
                 if (s != selectedOne)
-                   cb_TeamTwo.Items.Add(s);
+                {
+                    cb_TeamTwo.Items.Add(s);
+                }
+
             }
 
+            // if we found a selection from before and the combobox actually has that item
             if (keepSelection != null && cb_TeamTwo.Items.Contains(keepSelection))
-                cb_TeamTwo.SelectedItem = keepSelection;
+            {
+                cb_TeamTwo.SelectedItem = keepSelection; // we reselect that item
+            }
             else if (cb_TeamTwo.Items.Count > 0)
-                cb_TeamTwo.SelectedIndex = 0;
+            {
+                cb_TeamTwo.SelectedIndex = 0; // otherwise we just select the first item
+            }
+            else // something has gone wrong
+            {
+                MessageBox.Show("PromptSchedule error loading items into first combobox");
+                updating = false;
+                return;
+            }
 
+            // unlock the door
             updating = false;
         }
 
         private void btnOk_Click(object sender, EventArgs e)
         {
-            // this.... PROBABLY should never be able to happen, but whatever
+            // check if stuff is missing first, no use trying to send data we know the server will reject
             if (TeamA == "" || TeamB == "" || CourseName == "" || RaceName == "")
             {
                 MessageBox.Show(
@@ -150,6 +211,7 @@ namespace Alpine
                 return;
             }
 
+            // check if the teams are the same, no use trying to send data we know the server will reject
             if (TeamA == TeamB)
             {
                 MessageBox.Show(
@@ -162,60 +224,61 @@ namespace Alpine
             }
 
 
-            // thanks chatgpt
+            // get the dates from the selection as dat time values
             DateTime dateOnly = dtp_Date.Value.Date;
             TimeSpan startTime = dtp_Start.Value.TimeOfDay;
             TimeSpan endTime = dtp_End.Value.TimeOfDay;
 
+            // combine the date and start time to get the starting date and time
             DateTime combinedStart = dateOnly + startTime;
             DateTimeMe = combinedStart.ToString("yyyy-MM-ddTHH:mm");
 
+            // get the length from the two times
             int lengthMinutes = (int)Math.Round((endTime - startTime).TotalMinutes);
             Minutes = lengthMinutes.ToString();
 
-            // TODO check time every time user picks a time, cant be negative
-
-            // TODO date should be past today always
-
-            // TODO need to validate 
             DialogResult = DialogResult.OK;
             Close();
         }
 
+        // if the user clicks cancel we do nothing
         private void btnCancel_Click(object sender, EventArgs e)
         {
             DialogResult = DialogResult.Cancel;
             Close();
         }
 
-        // thanks slop bot for some of the help but also you suck ass
+        // partially chatgpt, we load our members into the ui
         private async Task LoadTeamsAsync()
         {
             try
             {
-                // get our json response
+                // send a request to the server and get the response
                 RequestHelpers request = new();
                 string json = await request.PostRequestTeams();
 
-                // deserialize it into the class whatever
-                var deserialized = JsonSerializer.Deserialize<List<string>>(json); // TODO this is a bit different then before 
+                // deserialize it into a list of strings
+                var deserialized = JsonSerializer.Deserialize<List<string>>(json); 
 
                 // make sure it isnt null
                 if (deserialized != null)
                 {
+                    // clear out the gathered teams
                     allTeams.Clear();
-                    foreach (var m in deserialized)
+
+                    // for each team
+                    foreach (var t in deserialized)
                     {
-                        allTeams.Add(m);
+                        allTeams.Add(t); // add this team to the gathered teams
                     }
+
+                    // clear out the comboboxes
                     cb_TeamOne.Items.Clear();
                     cb_TeamTwo.Items.Clear();
 
+                    // add the new items to the list
                     cb_TeamOne.Items.AddRange(allTeams.ToArray());
                     cb_TeamTwo.Items.AddRange(allTeams.ToArray());
-
-                    cb_TeamOne.SelectedIndex = 0;
-                    cb_TeamTwo.SelectedIndex = cb_TeamTwo.Items.Count - 1;
                 }
 
             }
@@ -225,23 +288,26 @@ namespace Alpine
             }
         }
 
+        // load courses into the ui
         private async Task LoadCoursesAsync()
         {
             try
             {
-                // get our json response
+                // send a request to the server and get the response
                 RequestHelpers request = new();
                 string json = await request.PostRequestCourses();
 
-                // deserialize it into the class whatever
+                // deserialize it into a list of strings
                 var deserialized = JsonSerializer.Deserialize<List<string>>(json);
 
                 // make sure it isnt null
                 if (deserialized != null)
                 {
-                    foreach (var m in deserialized)
+                    // for each course
+                    foreach (var c in deserialized)
                     {
-                        cb_Course.Items.Add(m);
+                        // add it to the combobox
+                        cb_Course.Items.Add(c);
                     }
                 }
 
@@ -250,6 +316,13 @@ namespace Alpine
             {
                 MessageBox.Show("Error loading teams: " + ex.Message);
             }
+        }
+
+        // for opening the manual
+        protected override void OnHelpButtonClicked(System.ComponentModel.CancelEventArgs e)
+        {
+            e.Cancel = true; // prevent the default
+            Alpine.Helpers.ManualHelpers.openHelperForm(); // we go open the manual
         }
     }
 }

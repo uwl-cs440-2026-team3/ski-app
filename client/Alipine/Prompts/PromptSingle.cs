@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Alpine.Views;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -11,6 +12,7 @@ using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
 
 namespace Alpine
 {
+    // multi purpose form for when 
     public partial class PromptSingle : Form
     {
         public string Value1 => textBox1.Text;
@@ -18,15 +20,17 @@ namespace Alpine
         public PromptSingle(string title, string lbl1)
         {
             InitializeComponent();
-
+            this.HelpButton = true;
+            this.MinimizeBox = false;
+            this.MaximizeBox = false;
+            this.ControlBox = true;
             Text = title;
 
             label1.Text = lbl1;
-
-            StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedToolWindow;
+            StartPosition = FormStartPosition.CenterParent; 
             AcceptButton = btnOk;
             CancelButton = btnCancel;
+            
         }
 
         private void btnOk_Click(object sender, EventArgs e)
@@ -54,6 +58,13 @@ namespace Alpine
         {
             DialogResult = DialogResult.Cancel;
             Close();
+        }
+
+        // for opening the manual
+        protected override void OnHelpButtonClicked(System.ComponentModel.CancelEventArgs e)
+        {
+            e.Cancel = true; // prevent the default
+            Alpine.Helpers.ManualHelpers.openHelperForm(); // we go open the manual
         }
     }
 }

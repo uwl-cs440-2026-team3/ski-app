@@ -1,4 +1,5 @@
 ﻿using Alpine.Helpers;
+using Alpine.Views;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -20,6 +21,8 @@ using static System.Windows.Forms.VisualStyles.VisualStyleElement.TrackBar;
 
 namespace Alpine
 {
+
+    // prompt form for entering teams
     public partial class PromptTeam : Form
     {
         public string TeamName => tb_name.Text;
@@ -27,16 +30,27 @@ namespace Alpine
         public string FirstSkier => cb_SkierOne.Text;
         public string SecondSkier => cb_SkierTwo.Text;
 
+        // list of all the skiers
         private List<string> allSkiers = new();
+
+        // locking system
         private bool updating = false;
 
         public PromptTeam()
         {
             InitializeComponent();
+
+            // these allow us to have the help button.... the windows api is really picky
+            this.HelpButton = true;
+            this.MinimizeBox = false;
+            this.MaximizeBox = false;
+            this.ControlBox = true;
+
             this.Text = "Create a team.";
 
-            StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedToolWindow;
+            // we start from the center of the main form
+            StartPosition = FormStartPosition.CenterParent;
+
             AcceptButton = btnOk;
             CancelButton = btnCancel;
 
@@ -45,8 +59,10 @@ namespace Alpine
 
         }
 
+        // goes through a few steps to load data from the server
         private async Task initMe()
         {
+            // load our members
             await LoadMembersAsync();
 
             // auto select the first and last items
@@ -54,77 +70,129 @@ namespace Alpine
             cb_SkierOne.SelectedIndex = 0;
             cb_SkierTwo.SelectedIndex = cb_SkierTwo.Items.Count - 1;
 
-
-            this.Visible = true;
+            
+            this.Visible = true; // finally show this form
         }
 
-        private void validate(object sender, EventArgs e)
-        {
-            // TODO WE SHOULD VALIDATE HERE BUT I DONT HAVE TIME RIGHT NOW HAHA
-        }
+        // guided by chatgpt, the following methods are what make it so you cannot select the same skier in both fields
 
-        // thanks chatgpt...
+        // whenever we select an item from the first combobox
         private void cb_SkierOne_SelectedIndexChanged(object sender, EventArgs e)
         {
-            UpdateSkierTwoItems();
+            UpdateSkierTwoItems(); // we update the second comboboxes items
         }
 
+        // whenever we select an item from the second combobox
         private void cb_SkierTwo_SelectedIndexChanged(object sender, EventArgs e)
         {
-            UpdateSkierOneItems();
+            UpdateSkierOneItems(); // we update the first comboboxes items
         }
 
+        // we update the first skiers
         private void UpdateSkierOneItems()
         {
-            if (updating) return;
+            // if we are alreadying updating do not try to update
+            if (updating)
+            {
+                return;
+            }
+
+            // lock the door
             updating = true;
 
+            // keep track of which ones are selected
             string keepSelection = cb_SkierOne.SelectedItem?.ToString();
             string selectedTwo = cb_SkierTwo.SelectedItem?.ToString();
 
+            // remove all items from the first check box
             cb_SkierOne.Items.Clear();
 
+            // for each skier
             foreach (string s in allSkiers)
             {
+                // as long as it is not the one that was selected in the second combobox
                 if (s != selectedTwo)
-                    cb_SkierOne.Items.Add(s);
+                {
+                    cb_SkierOne.Items.Add(s); // add it to the combobox
+                }
+                    
             }
 
+            // if we found a selection from before and the combobox actually has that item
             if (keepSelection != null && cb_SkierOne.Items.Contains(keepSelection))
-                cb_SkierOne.SelectedItem = keepSelection;
+            {
+                cb_SkierOne.SelectedItem = keepSelection; // we reselect that item
+            }
             else if (cb_SkierOne.Items.Count > 0)
-                cb_SkierOne.SelectedIndex = 0;
+            {
+                cb_SkierOne.SelectedIndex = 0; // otherwise we just select the first item
+            }
+            else // something has gone wrong
+            {
+                MessageBox.Show("PromptTeam error loading items into first combobox");
+                updating = false;
+                return;
+            }
 
+            // unlock the door
             updating = false;
         }
 
+        // we update the second skiers
         private void UpdateSkierTwoItems()
         {
-            if (updating) return;
+            // if we are alreadying updating do not try to update
+            if (updating)
+            {
+                return;
+            }
+
+            // lock the door
             updating = true;
 
+            // keep track of which ones are selected
             string keepSelection = cb_SkierTwo.SelectedItem?.ToString();
             string selectedOne = cb_SkierOne.SelectedItem?.ToString();
 
+            // remove all items from the second check box
             cb_SkierTwo.Items.Clear();
 
+            // for each skier
             foreach (string s in allSkiers)
             {
+                // as long as it is not the one that was selected in the first combobox
                 if (s != selectedOne)
-                    cb_SkierTwo.Items.Add(s);
+                {
+                    cb_SkierTwo.Items.Add(s); // add it to the combobox
+                }
             }
 
+            // if we found a selection from before and the combobox actually has that item
             if (keepSelection != null && cb_SkierTwo.Items.Contains(keepSelection))
-                cb_SkierTwo.SelectedItem = keepSelection;
-            else if (cb_SkierTwo.Items.Count > 0)
-                cb_SkierTwo.SelectedIndex = 0;
+            {
+                cb_SkierTwo.SelectedItem = keepSelection; // we reselect that item
+            }
 
+            else if (cb_SkierTwo.Items.Count > 0)
+            {
+                cb_SkierTwo.SelectedIndex = 0; // otherwise we just select the first item
+            }
+            else // something has gone wrong
+            {
+                MessageBox.Show("PromptTeam error loading items into first combobox");
+                updating = false;
+                return;
+            }
+
+            // unlock the door
             updating = false;
         }
 
+        // check some stuff when we click okay
         private void btnOk_Click(object sender, EventArgs e)
         {
 
+            // check if stuff is missing first, no use trying to send data we know the server will reject
             if (TeamName == "" || Coach == "" || FirstSkier == "" || SecondSkier == "")
             {
                 MessageBox.Show(
@@ -136,6 +204,7 @@ namespace Alpine
                 return;
             }
 
+            // check if the skiers are the same, no use trying to send data we know the server will reject
             if (FirstSkier == SecondSkier)
             {
                 MessageBox.Show(
@@ -146,52 +215,54 @@ namespace Alpine
                 );
                 return;
             }
-            // TODO need to validate
+
             DialogResult = DialogResult.OK;
             Close();
         }
 
+        // if the user clicks cancel we do nothing
         private void btnCancel_Click(object sender, EventArgs e)
         {
             DialogResult = DialogResult.Cancel;
             Close();
         }
 
-        // thanks slop bot for some of the help but also you suck ass
+        // partially chatgpt, we load our members into the ui
         private async Task LoadMembersAsync()
         {
             try
             {
-                // get our json response
+                // send a request to the server and get the response
                 RequestHelpers request = new();
                 string json = await request.PostRequestMembers();
 
-                // deserialize it into the class whatever
+                // deserialize it into a list of members
                 var deserialized = JsonSerializer.Deserialize<List<Member>>(json);
 
                 // make sure it isnt null
                 if (deserialized != null)
                 {
-                    //allSkiers.Clear();
+                    // for each user
                     foreach (var m in deserialized)
                     {
-                        if (m.role.Equals("coach"))
+                        if (m.role.Equals("coach")) // if it is a coach we add it to the coach box
                         {
                             cb_Coach.Items.Add(m.name);
                         }
-                        else if (m.role.Equals("skier"))
+                        else if (m.role.Equals("skier")) // if it is a skier we add it to our skier list
                         {
                             allSkiers.Add(m.name);
                         }
                     }
+
+                    // clear out the comboboxes
                     cb_SkierOne.Items.Clear();
                     cb_SkierTwo.Items.Clear();
 
+                    // add the new items to the list
                     cb_SkierOne.Items.AddRange(allSkiers.ToArray());
                     cb_SkierTwo.Items.AddRange(allSkiers.ToArray());
 
-                    cb_SkierOne.SelectedIndex = 0;
-                    cb_SkierTwo.SelectedIndex = cb_SkierTwo.Items.Count - 1;
                 }
 
             }
@@ -200,6 +271,12 @@ namespace Alpine
                 MessageBox.Show("Error loading members: " + ex.Message);
             }
         }
+
+        // for opening the manual
+        protected override void OnHelpButtonClicked(System.ComponentModel.CancelEventArgs e)
+        {
+            e.Cancel = true; // prevent the default
+            Alpine.Helpers.ManualHelpers.openHelperForm(); // we go open the manual
+        }
     }
- 
 }
