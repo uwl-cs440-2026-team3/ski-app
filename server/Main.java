@@ -21,6 +21,14 @@ public class Main {
         KeyManager[] keys = Main.loadCertificateOrBust(serverCert, passphrase);
         Main.initDBOrBust(Config.databaseURL);
 
+        // Configure notification delivery: log to console for debugging
+        // AND persist to the database so the frontend can fetch them via
+        // /mynotifications. The composite fans every notify() call out to
+        // both implementations.
+        RouteContext.setNotifier(new CompositeNotifier(
+            new ConsoleNotifier(),
+            new DatabaseNotifier(Config.databaseURL)));
+
         try {
             SSLContext ctx = SSLContext.getInstance("TLSv1.2");
             ctx.init(keys, null, null);
@@ -83,12 +91,22 @@ public class Main {
             name TEXT NOT NULL UNIQUE);
 
         CREATE TABLE IF NOT EXISTS races (
+            raceid INTEGER PRIMARY KEY ASC AUTOINCREMENT,
             name STRING NOT NULL,
             team_id_a INTEGER NOT NULL REFERENCES teams (teamid),
             team_id_b INTEGER NOT NULL REFERENCES teams (teamid),
             course_id INTEGER NOT NULL REFERENCES courses (courseid),
             starttime STRING NOT NULL,
-            endtime   STRING NOT NULL);
+            endtime   STRING NOT NULL,
+            status    STRING NOT NULL DEFAULT 'ACTIVE');
+
+        CREATE TABLE IF NOT EXISTS notifications (
+            notificationid INTEGER PRIMARY KEY ASC AUTOINCREMENT,
+            user_id    INTEGER NOT NULL REFERENCES users(userid),
+            type       STRING NOT NULL,
+            message    STRING NOT NULL,
+            created_at STRING NOT NULL,
+            read_at    STRING);
 
         """;
 
@@ -107,12 +125,74 @@ public class Main {
                 statement.setString(2, AuthUtil.hashPassword(Config.adminPassword));
                 statement.execute();
             }
+            // Run migrations for existing databases that predate
+            // the raceid PK and status column.
+            migrateRacesTable(conn);
         } catch (SQLException e) {
             e.printStackTrace(System.err);
             System.exit(1);
         } catch (NoSuchAlgorithmException e) {
             System.err.println("Fatal: Missing hash algorithm.");
             System.exit(1);
+        }
+    }
+
+    /**
+     * Upgrades the races table from the old schema (no raceid, no status)
+     * to the new one. Idempotent: detects existing columns and skips work
+     * if migration was already done. Safe to call on every server startup.
+     *
+     * SQLite doesn't allow adding a PRIMARY KEY via ALTER TABLE, so we
+     * rename the old table, create the new one, copy rows over, then drop
+     * the old table. The whole thing runs in a transaction so a crash
+     * mid-migration doesn't leave a half-broken database.
+     */
+    private static void migrateRacesTable(Connection conn) throws SQLException {
+        boolean hasRaceId = false;
+        boolean hasStatus = false;
+        try (Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery("PRAGMA table_info(races)")) {
+            while (rs.next()) {
+                String col = rs.getString("name");
+                if ("raceid".equals(col)) hasRaceId = true;
+                if ("status".equals(col)) hasStatus = true;
+            }
+        }
+
+        if (hasRaceId && hasStatus) {
+            return; // already migrated
+        }
+
+        System.out.println("Migrating races table to new schema...");
+        conn.setAutoCommit(false);
+        try (Statement s = conn.createStatement()) {
+            s.executeUpdate("ALTER TABLE races RENAME TO races_old");
+            s.executeUpdate("""
+                CREATE TABLE races (
+                    raceid INTEGER PRIMARY KEY ASC AUTOINCREMENT,
+                    name STRING NOT NULL,
+                    team_id_a INTEGER NOT NULL REFERENCES teams (teamid),
+                    team_id_b INTEGER NOT NULL REFERENCES teams (teamid),
+                    course_id INTEGER NOT NULL REFERENCES courses (courseid),
+                    starttime STRING NOT NULL,
+                    endtime   STRING NOT NULL,
+                    status    STRING NOT NULL DEFAULT 'ACTIVE')
+                """);
+            s.executeUpdate("""
+                INSERT INTO races (name, team_id_a, team_id_b, course_id,
+                                   starttime, endtime, status)
+                SELECT name, team_id_a, team_id_b, course_id,
+                       starttime, endtime, 'ACTIVE'
+                FROM races_old
+                """);
+            s.executeUpdate("DROP TABLE races_old");
+            conn.commit();
+            System.out.println("Migration complete.");
+        } catch (SQLException e) {
+            conn.rollback();
+            throw e;
+        } finally {
+            conn.setAutoCommit(true);
         }
     }
 

@@ -109,7 +109,7 @@ Requires access level: admin
 
 Schedules a race between the specified teams on the specified course. The beginning of the race is given by the start field and must be in the format YYYY-MM-DDTHH:MM (T is a literal T character as required by ISO\_8601). The duration of the race is given as a nonnegative number of minutes.
 
-The request will be rejected if the teams or course do not exist, either of the teams are already scheduled for a race within 30 minutes exclusive of this one, the course is already taken for a race within 30 minutes exclusive of this one, or the start time is in the past at the time of processing the request.
+The request will be rejected if the teams or course do not exist, either of the teams are already scheduled for a race within 30 minutes exclusive of this one, the course is already taken for a race within 30 minutes exclusive of this one, the start time is in the past at the time of processing the request, or another currently-active race already has the same name. Canceled races do not count toward the name-uniqueness check, so the name of a canceled race may be reused.
 
 #### Response
 
@@ -118,8 +118,33 @@ The request will be rejected if the teams or course do not exist, either of the 
 * 400 Bad Request - if the format of the start or duration field is invalid
 * 400 Bad Request - if the start datetime is in the past
 * 400 Bad Request - if team\_a and team\_b are the same team
-* 409 Conflict - if any of the teams or courses conflict as described in the request section.
+* 409 Conflict - if any of the teams or courses conflict as described in the request section, or if another active race already has the requested name
 * 403 Forbidden - Missing or invalid authorization token
+
+### /cancelrace
+
+#### Request
+
+Requires access level: admin
+
+```json
+{
+  "name" : race_name
+}
+```
+
+Cancels a previously scheduled race, identified by name. The race row is preserved in the database with its status set to `CANCELED`, so the cancellation can be referenced later (for audits, notifications, or reporting). Canceled races are excluded from `/getraces` and `/getmyraces` results.
+
+Because `/schedule` enforces that at most one race may be active with any given name at a time, identifying a race by name is unambiguous. If only canceled races exist with the requested name, the server treats this as if no such race exists and returns 404.
+
+When a cancellation succeeds, all skiers and coaches assigned to either of the competing teams are notified through the server's configured notification mechanism. A notification delivery failure does not affect the HTTP response: the cancellation is still considered successful and a 200 response is returned.
+
+#### Response
+
+* 200 OK - if the race was canceled successfully
+* 400 Bad Request - Invalid JSON or missing required fields
+* 403 Forbidden - Missing or invalid authorization token, or caller is not an admin
+* 404 Not Found - if no active race exists with the specified name
 
 ### /getmembers
 
@@ -207,6 +232,7 @@ If the request succeeds, the response body consists of the following JSON respon
 ```json
 [
   {
+    "raceid" : raceid,
     "name" : race_name,
     "teamA" : team_name,
     "teamB" : team_name,
@@ -218,7 +244,7 @@ If the request succeeds, the response body consists of the following JSON respon
 ]
 ```
 
-The response includes all races in the system at the time the request was processed which are scheduled in the future. The start and end fields will be in an unspecified date format suitable for displaying.
+The response includes all races in the system at the time the request was processed which are scheduled in the future and have not been canceled. The `raceid` field is the integer primary key of the race in the database; it is required when calling `/cancelrace`. The `start` and `end` fields will be in an unspecified date format suitable for displaying.
 
 ### /getmyteam
 
@@ -271,4 +297,57 @@ If the request succeeds, the response body consists of the following JSON respon
 ]
 ```
 
-The response includes all future races the skier or coach is a participant in at the time the request is processed. The start and end fields will be in an unspecified date format suitable for displaying. The response format is the same as for /getraces, and the races will be in ascending order by start datetime.
+The response includes all future races the skier or coach is a participant in at the time the request is processed. The `start` and `end` fields will be in an unspecified date format suitable for displaying. Note that this response intentionally omits the `raceid` field that `/getraces` returns, since skiers and coaches do not have permission to cancel races. Races are returned in ascending order by start datetime.
+
+### /mynotifications
+
+#### Request
+
+Requires access level: skier (any logged-in user)
+
+Requests the calling user's notifications. Each user only ever sees their own notifications; the response is filtered server-side based on the bearer token.
+
+#### Response
+
+* 200 OK - if the request succeeds
+* 403 Forbidden - if the user is not logged in
+
+If the request succeeds, the response body is a JSON array, newest first:
+
+```json
+[
+  {
+    "notificationid" : notificationid,
+    "type" : type,
+    "message" : message,
+    "created_at" : timestamp,
+    "read_at" : timestamp
+  },
+  ...
+]
+```
+
+The `type` field is one of `RACE_CANCELED`, `RACE_RESCHEDULED`, or `RACE_REMINDER`. The `message` field contains a human-readable summary suitable for direct display to the user. The `created_at` field is an ISO 8601 timestamp indicating when the notification was generated. The `read_at` field is `null` for unread notifications, or an ISO 8601 timestamp indicating when the user marked it read.
+
+### /marknotificationread
+
+#### Request
+
+Requires access level: skier (any logged-in user)
+
+```json
+{
+  "notificationid" : notificationid
+}
+```
+
+Marks a single notification as read. Users can only mark their own notifications; attempting to mark another user's notification returns 404 (the server does not distinguish "not yours" from "doesn't exist" in the response).
+
+The `notificationid` field is a string containing the integer ID of the notification, as returned by `/mynotifications`.
+
+#### Response
+
+* 200 OK - if the notification was marked read
+* 400 Bad Request - Invalid JSON, missing fields, or non-integer notificationid
+* 403 Forbidden - if the user is not logged in
+* 404 Not Found - if no notification with the given id belongs to the calling user
